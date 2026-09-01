@@ -6,9 +6,8 @@ def check_gpu():
     try:
         import torch
         if not torch.cuda.is_available():
-            print("ERROR: GPU is not available! Please enable a GPU runtime in Colab.")
-            print("To do this: Runtime > Change runtime type > Hardware accelerator: GPU.")
-            sys.exit(1)
+            print("WARNING: GPU is not available! A GPU is highly recommended for later training stages.")
+            print("Running on CPU for now...")
         print("SUCCESS: PyTorch GPU (CUDA) is available.")
     except ImportError:
         print("ERROR: PyTorch is not installed. Did you run `pip install -r requirements.txt`?")
