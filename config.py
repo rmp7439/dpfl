@@ -14,6 +14,10 @@ CONFIG = {
     # Data Split (Dirichlet)
     "alpha": 0.1,              # Concentration parameter for Dirichlet split
     
+    # Centralized Baseline Training
+    "central_epochs": 2,       # Tiny number of epochs for small-subset testing
+    "central_lr": 0.001,       # Learning rate
+    
     # DP-SGD (Opacus) parameters
     "noise_multiplier": 1.0,
     "max_grad_norm": 1.0,
