@@ -35,10 +35,10 @@ and wait — just run them, then tell me what you committed in one line.
 - It's fine to have a commit that just fixes something you broke two commits ago. Don't rewrite
   history to hide it.
 
-## Learn track — do not skip this
-Each stage has a BUILD track and a LEARN track. After BUILD is checkpointed, actually do the
-LEARN part: explain the concept back to me in the chat (not just a code comment), and end with
-the stage's checkpoint question so I can confirm I understood it before you move on.
+## Learn track
+Skipped for now — move fast through BUILD, no checkpoint questions, no waiting for
+confirmation before proceeding. Still log a one-line note of what was built at each stage
+for later reference.
 
 ## Reproducibility
 Seed torch/numpy/random from Stage 0 onward. Every run's hyperparameters (σ, C, α, δ) must be
