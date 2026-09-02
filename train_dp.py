@@ -78,7 +78,7 @@ def test(model, device, test_loader):
     return acc
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Centralized Baseline")
+    parser = argparse.ArgumentParser(description="Run Centralized DP Baseline")
     parser.add_argument("--full", action="store_true", help="Run on full CIFAR-10 instead of subset")
     args = parser.parse_args()
 
@@ -94,12 +94,12 @@ def main():
     num_samples = CONFIG.get("num_samples", 1000)
     
     if args.full:
-        print("Running centralized baseline on FULL CIFAR-10")
+        print("Running centralized DP baseline on FULL CIFAR-10")
         trainset, testset = get_data(subset_size=None)
         # For full dataset we want more epochs normally, but let's stick to config or scale
         epochs = 10  # Override to 10 for a decent baseline
     else:
-        print(f"Running centralized baseline on subset ({num_samples} samples)")
+        print(f"Running centralized DP baseline on subset ({num_samples} samples)")
         trainset, testset = get_data(subset_size=num_samples)
         
     train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True)
@@ -107,6 +107,16 @@ def main():
     
     model = SimpleCNN().to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    
+    from opacus import PrivacyEngine
+    privacy_engine = PrivacyEngine()
+    model, optimizer, train_loader = privacy_engine.make_private(
+        module=model,
+        optimizer=optimizer,
+        data_loader=train_loader,
+        noise_multiplier=CONFIG.get("noise_multiplier", 1.0),
+        max_grad_norm=CONFIG.get("max_grad_norm", 1.0),
+    )
     
     for epoch in range(1, epochs + 1):
         train(model, device, train_loader, optimizer, epoch)
