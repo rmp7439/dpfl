@@ -92,9 +92,11 @@ def main():
     if args.full:
         print(f"Running Federation on FULL CIFAR-10, clients: {num_clients}, alpha: {alpha}")
         GLOBAL_TRAINSET, GLOBAL_TESTSET = get_data(subset_size=None)
+        num_rounds = 10 # match baseline epochs
     else:
         print(f"Running Federation on subset ({num_samples} samples), clients: {num_clients}, alpha: {alpha}")
         GLOBAL_TRAINSET, GLOBAL_TESTSET = get_data(subset_size=num_samples)
+        num_rounds = CONFIG.get("num_rounds", 2)
         
     CLIENT_INDICES, _ = dirichlet_split(GLOBAL_TRAINSET, num_clients, alpha)
     
@@ -110,7 +112,7 @@ def main():
     fl.simulation.start_simulation(
         client_fn=client_fn,
         num_clients=num_clients,
-        config=fl.server.ServerConfig(num_rounds=CONFIG.get("num_rounds", 2)),
+        config=fl.server.ServerConfig(num_rounds=num_rounds),
         strategy=strategy,
     )
 
