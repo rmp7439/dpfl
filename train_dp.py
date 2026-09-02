@@ -90,7 +90,7 @@ def main():
     
     batch_size = CONFIG.get("batch_size", 32)
     epochs = CONFIG.get("central_epochs", 2)
-    lr = CONFIG.get("central_lr", 0.001)
+    lr = CONFIG.get("dp_lr", 0.00025)
     num_samples = CONFIG.get("num_samples", 1000)
     
     if args.full:

@@ -19,6 +19,7 @@ CONFIG = {
     "central_lr": 0.001,       # Learning rate
     
     # DP-SGD (Opacus) parameters
+    "dp_lr": 0.00025,
     "noise_multiplier": 1.0,
     "max_grad_norm": 1.0,
 }
