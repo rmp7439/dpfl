@@ -7,9 +7,12 @@ CONFIG = {
     "batch_size": 32,          # Small batch size
     
     # Federated Learning (Flower)
-    "num_clients": 2,          # 2-3 simulated clients
+    "num_clients": 3,          # 3 simulated clients for better visualization
     "num_rounds": 2,           # Tiny number of federation rounds
     "local_epochs": 1,         # Minimal local training
+    
+    # Data Split (Dirichlet)
+    "alpha": 0.1,              # Concentration parameter for Dirichlet split
     
     # DP-SGD (Opacus) parameters
     "noise_multiplier": 1.0,
