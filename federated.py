@@ -39,8 +39,20 @@ class FlowerClient(fl.client.NumPyClient):
         optimizer = optim.Adam(self.net.parameters(), lr=lr)
         local_epochs = CONFIG.get("local_epochs", 1)
         
+        from opacus import PrivacyEngine
+        privacy_engine = PrivacyEngine()
+        self.net, optimizer, train_loader = privacy_engine.make_private(
+            module=self.net,
+            optimizer=optimizer,
+            data_loader=self.train_loader,
+            noise_multiplier=CONFIG.get("noise_multiplier", 1.0),
+            max_grad_norm=CONFIG.get("max_grad_norm", 1.0),
+        )
+        
         for epoch in range(1, local_epochs + 1):
-            train(self.net, self.device, self.train_loader, optimizer, epoch)
+            train(self.net, self.device, train_loader, optimizer, epoch)
+            
+        self.net = self.net._module
             
         return self.get_parameters(config={}), len(self.train_loader.dataset), {}
         

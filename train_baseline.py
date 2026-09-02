@@ -108,6 +108,16 @@ def main():
     model = SimpleCNN().to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
+    from opacus import PrivacyEngine
+    privacy_engine = PrivacyEngine()
+    model, optimizer, train_loader = privacy_engine.make_private(
+        module=model,
+        optimizer=optimizer,
+        data_loader=train_loader,
+        noise_multiplier=CONFIG.get("noise_multiplier", 1.0),
+        max_grad_norm=CONFIG.get("max_grad_norm", 1.0),
+    )
+    
     for epoch in range(1, epochs + 1):
         train(model, device, train_loader, optimizer, epoch)
         test(model, device, test_loader)
