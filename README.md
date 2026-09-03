@@ -10,9 +10,13 @@
    !git clone https://github.com/rmp7439/dpfl.git
    %cd dpfl
    ```
-3. Install the pinned dependencies:
+3. Install the pinned dependencies and uninstall `triton`:
    ```bash
    !pip install -r requirements.txt
+   # IMPORTANT: The PyTorch Linux wheel auto-installs triton, which causes 
+   # Ray actor subprocesses to crash (SIGSEGV) during simulation. 
+   # You must uninstall it before running any federated scripts:
+   !pip uninstall -y triton
    ```
 4. Run the initial GPU and setup validation:
    ```bash
