@@ -1,4 +1,7 @@
-﻿alembic==1.19.1
+# NOTE: If you run this on Google Colab and experience a SIGSEGV crash in triton.knobs
+# during Ray actor initialization (flwr simulation), uninstall triton before running:
+# `pip uninstall -y triton`
+alembic==1.19.1
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.14.2
