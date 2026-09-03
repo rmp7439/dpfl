@@ -11,6 +11,8 @@ from config import CONFIG
 from model import SimpleCNN
 from train_baseline import get_data, train, test
 from data_split import dirichlet_split
+import math
+from opacus.accountants.analysis.rdp import compute_rdp, get_privacy_spent
 
 # Global data placeholders for simulation
 GLOBAL_TRAINSET = None
@@ -92,7 +94,14 @@ def main():
     
     parser = argparse.ArgumentParser(description="Run Flower Federation")
     parser.add_argument("--full", action="store_true", help="Run on full CIFAR-10 instead of subset")
+    parser.add_argument("--sigma", type=float, help="Noise multiplier (sigma) for DP-SGD")
+    parser.add_argument("--C", type=float, help="Max grad norm (C) for DP-SGD")
     args = parser.parse_args()
+    
+    if args.sigma is not None:
+        CONFIG["noise_multiplier"] = args.sigma
+    if args.C is not None:
+        CONFIG["max_grad_norm"] = args.C
     
     np.random.seed(42)
     torch.manual_seed(42)
@@ -121,12 +130,41 @@ def main():
         evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
     )
     
-    fl.simulation.start_simulation(
+    history = fl.simulation.start_simulation(
         client_fn=client_fn,
         num_clients=num_clients,
         config=fl.server.ServerConfig(num_rounds=num_rounds),
         strategy=strategy,
     )
+    
+    # Calculate RDP
+    alphas = [1.0 + x / 10.0 for x in range(1, 100)] + list(range(12, 64))
+    max_epsilon = 0
+    best_alpha_global = 0
+    
+    for i in range(num_clients):
+        dataset_size = len(CLIENT_INDICES[i])
+        batch_size = CONFIG.get("batch_size", 32)
+        steps_per_epoch = math.ceil(dataset_size / batch_size)
+        sample_rate = 1.0 / steps_per_epoch
+        steps_per_round = steps_per_epoch * CONFIG.get("local_epochs", 1)
+        total_steps = steps_per_round * num_rounds
+        
+        rdp = compute_rdp(q=sample_rate, noise_multiplier=CONFIG.get("noise_multiplier", 1.0), steps=total_steps, orders=alphas)
+        epsilon, best_alpha = get_privacy_spent(orders=alphas, rdp=rdp, delta=1e-5)
+        if epsilon > max_epsilon:
+            max_epsilon = epsilon
+            best_alpha_global = best_alpha
+            
+    final_acc = 0.0
+    if history.metrics_distributed and "accuracy" in history.metrics_distributed:
+        final_acc = history.metrics_distributed["accuracy"][-1][1]
+        
+    print("\n--- FINAL RESULTS ---")
+    print(f"sigma={CONFIG.get('noise_multiplier', 1.0)}, C={CONFIG.get('max_grad_norm', 1.0)}")
+    print(f"Privacy Guarantee: epsilon={max_epsilon:.4f} (delta=1e-5, alpha={best_alpha_global})")
+    print(f"Final Aggregated Accuracy: {final_acc:.2f}%")
+    print(f"RESULT_CSV:{CONFIG.get('noise_multiplier', 1.0)},{CONFIG.get('max_grad_norm', 1.0)},1e-5,{best_alpha_global},{max_epsilon:.4f},{final_acc:.4f}")
 
 if __name__ == "__main__":
     main()
