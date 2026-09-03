@@ -1,0 +1,25 @@
+Using device: cuda
+Running centralized DP baseline on FULL CIFAR-10
+100% 170M/170M [28:25<00:00, 100kB/s]
+/usr/local/lib/python3.13/dist-packages/opacus/privacy_engine.py:98: UserWarning: Secure RNG turned off. This is perfectly fine for experimentation as it allows for much faster training performance, but remember to turn it on and retrain one last time before production with ``secure_mode`` turned on. warnings.warn(
+<sys>:0: UserWarning: Full backward hook is firing when gradients are computed with respect to module outputs since no inputs require gradients. See https://docs.pytorch.org/docs/main/generated/torch.nn.Module.html#torch.nn.Module.register_full_backward_hook for more details.
+Train Epoch: 1 	Loss: 2.258841	Accuracy: 16.67%
+Test set: Average loss: 2.1839, Accuracy: 2339/10000 (23.39%)
+Train Epoch: 2 	Loss: 2.136804	Accuracy: 22.92%
+Test set: Average loss: 2.0444, Accuracy: 2712/10000 (27.12%)
+Train Epoch: 3 	Loss: 2.054815	Accuracy: 25.28%
+Test set: Average loss: 1.9699, Accuracy: 3022/10000 (30.22%)
+Train Epoch: 4 	Loss: 2.011090	Accuracy: 26.80%
+Test set: Average loss: 1.9256, Accuracy: 3153/10000 (31.53%)
+Train Epoch: 5 	Loss: 1.992271	Accuracy: 27.77%
+Test set: Average loss: 1.9112, Accuracy: 3150/10000 (31.50%)
+Train Epoch: 6 	Loss: 1.984079	Accuracy: 28.38%
+Test set: Average loss: 1.8988, Accuracy: 3254/10000 (32.54%)
+Train Epoch: 7 	Loss: 1.977795	Accuracy: 28.80%
+Test set: Average loss: 1.8751, Accuracy: 3284/10000 (32.84%)
+Train Epoch: 8 	Loss: 1.958783	Accuracy: 29.77%
+Test set: Average loss: 1.8717, Accuracy: 3338/10000 (33.38%)
+Train Epoch: 9 	Loss: 1.950660	Accuracy: 30.84%
+Test set: Average loss: 1.8522, Accuracy: 3443/10000 (34.43%)
+Train Epoch: 10 	Loss: 1.953396	Accuracy: 30.98%
+Test set: Average loss: 1.8401, Accuracy: 3468/10000 (34.68%)
