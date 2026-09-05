@@ -37,7 +37,7 @@ class FlowerClient(fl.client.NumPyClient):
         
     def fit(self, parameters, config):
         self.set_parameters(parameters)
-        lr = CONFIG.get("central_lr", 0.001)
+        lr = CONFIG.get("dp_lr", 0.00025)
         optimizer = optim.Adam(self.net.parameters(), lr=lr)
         local_epochs = CONFIG.get("local_epochs", 1)
         

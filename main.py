@@ -8,7 +8,8 @@ def check_gpu():
         if not torch.cuda.is_available():
             print("WARNING: GPU is not available! A GPU is highly recommended for later training stages.")
             print("Running on CPU for now...")
-        print("SUCCESS: PyTorch GPU (CUDA) is available.")
+        else:
+            print("SUCCESS: PyTorch GPU (CUDA) is available.")
     except ImportError:
         print("ERROR: PyTorch is not installed. Did you run `pip install -r requirements.txt`?")
         sys.exit(1)
