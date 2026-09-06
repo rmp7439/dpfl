@@ -10,6 +10,8 @@ CONFIG = {
     "num_clients": 3,          # 3 simulated clients for better visualization
     "num_rounds": 2,           # Tiny number of federation rounds
     "local_epochs": 1,         # Minimal local training
+    "fed_lr": 0.01,            # Learning rate for plain federated learning
+    "fed_optimizer": "SGD",    # Optimizer for plain federated learning
     
     # Data Split (Dirichlet)
     "alpha": 0.1,              # Concentration parameter for Dirichlet split

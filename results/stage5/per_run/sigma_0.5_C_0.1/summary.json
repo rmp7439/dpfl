@@ -1,0 +1,31 @@
+{
+    "dataset_mode": "full",
+    "number_of_training_samples": 50000,
+    "number_of_test_samples": 10000,
+    "number_of_clients": 3,
+    "alpha": 0.1,
+    "sigma": 0.5,
+    "C": 0.1,
+    "delta": 1e-05,
+    "sample_rate": 0.0012658227848101266,
+    "total_dp_steps": 2370,
+    "batch_size": 32,
+    "local_epochs": 1,
+    "optimizer": "Adam",
+    "model": "SimpleCNN",
+    "device": "cpu",
+    "GPU": "None",
+    "number_of_communication_rounds": 3,
+    "per_round_test_accuracy": [
+        13.23,
+        16.329999999999995,
+        20.94
+    ],
+    "final_test_accuracy": 20.94,
+    "best_test_accuracy": 20.94,
+    "epsilon": 5.42343580467527,
+    "best_alpha": 3.1,
+    "runtime_seconds": 1527.4601516723633,
+    "run_status": "Success",
+    "timestamp": "2026-09-06T22:50:01.360053"
+}

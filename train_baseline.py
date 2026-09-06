@@ -5,6 +5,11 @@ from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 import argparse
 import numpy as np
+import json
+import os
+import csv
+import matplotlib.pyplot as plt
+import datetime
 
 from config import CONFIG
 from model import SimpleCNN
@@ -57,6 +62,7 @@ def train(model, device, train_loader, optimizer, epoch):
     avg_loss = total_loss / len(train_loader)
     acc = 100. * correct / len(train_loader.dataset)
     print(f"Train Epoch: {epoch} \tLoss: {avg_loss:.6f}\tAccuracy: {acc:.2f}%")
+    return avg_loss, acc
 
 def test(model, device, test_loader):
     model.eval()
@@ -75,15 +81,16 @@ def test(model, device, test_loader):
     test_loss /= len(test_loader)
     acc = 100. * correct / len(test_loader.dataset)
     print(f"Test set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} ({acc:.2f}%)")
-    return acc
+    return test_loss, acc
 
 def main():
     parser = argparse.ArgumentParser(description="Run Centralized Baseline")
     parser.add_argument("--full", action="store_true", help="Run on full CIFAR-10 instead of subset")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     args = parser.parse_args()
 
-    np.random.seed(42)
-    torch.manual_seed(42)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -93,11 +100,12 @@ def main():
     lr = CONFIG.get("central_lr", 0.001)
     num_samples = CONFIG.get("num_samples", 1000)
     
+    mode = "full" if args.full else "subset"
+    
     if args.full:
         print("Running centralized baseline on FULL CIFAR-10")
         trainset, testset = get_data(subset_size=None)
-        # For full dataset we want more epochs normally, but let's stick to config or scale
-        epochs = 10  # Override to 10 for a decent baseline
+        epochs = 15  # Override to 15 for a decent baseline
     else:
         print(f"Running centralized baseline on subset ({num_samples} samples)")
         trainset, testset = get_data(subset_size=num_samples)
@@ -108,9 +116,86 @@ def main():
     model = SimpleCNN().to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
+    history = {
+        "train_loss": [], "train_acc": [],
+        "test_loss": [], "test_acc": []
+    }
+    
+    best_test_acc = 0.0
+    
     for epoch in range(1, epochs + 1):
-        train(model, device, train_loader, optimizer, epoch)
-        test(model, device, test_loader)
+        tr_loss, tr_acc = train(model, device, train_loader, optimizer, epoch)
+        te_loss, te_acc = test(model, device, test_loader)
         
+        history["train_loss"].append(tr_loss)
+        history["train_acc"].append(tr_acc)
+        history["test_loss"].append(te_loss)
+        history["test_acc"].append(te_acc)
+        
+        if te_acc > best_test_acc:
+            best_test_acc = te_acc
+            
+    # Persistence
+    out_dir = os.path.join("results", "stage2")
+    os.makedirs(out_dir, exist_ok=True)
+    
+    prefix = f"baseline_{mode}"
+    
+    # Save JSON config & results
+    result_data = {
+        "dataset_mode": mode,
+        "number_of_training_samples": len(trainset),
+        "number_of_test_samples": len(testset),
+        "seed": args.seed,
+        "model_name": "SimpleCNN",
+        "optimizer": "Adam",
+        "learning_rate": lr,
+        "batch_size": batch_size,
+        "number_of_epochs": epochs,
+        "final_test_accuracy": history["test_acc"][-1],
+        "best_test_accuracy": best_test_acc,
+        "convergence_definition": f"Best test accuracy achieved within {epochs} epochs",
+        "device": str(device),
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+    
+    with open(os.path.join(out_dir, f"{prefix}_seed{args.seed}.json"), "w") as f:
+        json.dump(result_data, f, indent=4)
+        
+    # Save CSV history
+    with open(os.path.join(out_dir, f"{prefix}_seed{args.seed}.csv"), "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["epoch", "train_loss", "train_acc", "test_loss", "test_acc"])
+        for i in range(epochs):
+            writer.writerow([i+1, history["train_loss"][i], history["train_acc"][i], 
+                             history["test_loss"][i], history["test_acc"][i]])
+                             
+    # Plots
+    epochs_range = range(1, epochs + 1)
+    
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, history["train_loss"], label='Train Loss')
+    plt.plot(epochs_range, history["test_loss"], label='Test Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title(f'{mode.capitalize()} Baseline Loss')
+    plt.legend()
+    
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, history["train_acc"], label='Train Acc')
+    plt.plot(epochs_range, history["test_acc"], label='Test Acc')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    plt.title(f'{mode.capitalize()} Baseline Accuracy')
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, f"{prefix}_plots_seed{args.seed}.png"))
+    
+    print(f"\nFinal Test Accuracy: {history['test_acc'][-1]:.2f}%")
+    print(f"Best Test Accuracy: {best_test_acc:.2f}%")
+    print(f"Results saved to {out_dir}")
+
 if __name__ == "__main__":
     main()

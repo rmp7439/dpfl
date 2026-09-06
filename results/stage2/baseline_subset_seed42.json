@@ -1,0 +1,16 @@
+{
+    "dataset_mode": "subset",
+    "number_of_training_samples": 1000,
+    "number_of_test_samples": 200,
+    "seed": 42,
+    "model_name": "SimpleCNN",
+    "optimizer": "Adam",
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "number_of_epochs": 2,
+    "final_test_accuracy": 32.5,
+    "best_test_accuracy": 32.5,
+    "convergence_definition": "Best test accuracy achieved within 2 epochs",
+    "device": "cpu",
+    "timestamp": "2026-09-06T18:30:20.900696"
+}

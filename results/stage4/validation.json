@@ -1,0 +1,47 @@
+{
+    "grad_sample_present": true,
+    "grad_sample_shapes": {
+        "_module.conv1.weight": [
+            20,
+            32,
+            3,
+            3,
+            3
+        ],
+        "_module.conv1.bias": [
+            20,
+            32
+        ],
+        "_module.conv2.weight": [
+            20,
+            64,
+            32,
+            3,
+            3
+        ],
+        "_module.conv2.bias": [
+            20,
+            64
+        ],
+        "_module.fc1.weight": [
+            20,
+            512,
+            4096
+        ],
+        "_module.fc1.bias": [
+            20,
+            512
+        ],
+        "_module.fc2.weight": [
+            20,
+            10,
+            512
+        ],
+        "_module.fc2.bias": [
+            20,
+            10
+        ]
+    },
+    "clipping_C": 1.0,
+    "noise_sigma": 1.0
+}

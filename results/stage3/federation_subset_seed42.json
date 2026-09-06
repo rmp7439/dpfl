@@ -1,0 +1,27 @@
+{
+    "seed": 42,
+    "dataset_mode": "subset",
+    "number_of_training_samples": 1000,
+    "number_of_test_samples": 200,
+    "number_of_clients": 3,
+    "alpha": 0.1,
+    "batch_size": 32,
+    "local_epochs": 1,
+    "optimizer": "SGD",
+    "learning_rate": 0.01,
+    "number_of_communication_rounds": 2,
+    "samples_per_client": {
+        "0": 469,
+        "1": 273,
+        "2": 258
+    },
+    "per_round_test_accuracy": [
+        15.5,
+        16.0
+    ],
+    "final_test_accuracy": 16.0,
+    "best_test_accuracy": 16.0,
+    "execution_status": "Success",
+    "device": "cpu",
+    "timestamp": "2026-09-06T21:36:36.439369"
+}
