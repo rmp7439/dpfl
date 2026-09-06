@@ -5,6 +5,7 @@ from torch.utils.data import Subset
 import matplotlib.pyplot as plt
 import os
 import argparse
+import json
 from config import CONFIG
 
 def get_cifar10(subset_size=None):
@@ -81,6 +82,47 @@ def plot_class_distribution(client_indices, labels, num_classes, filename):
     plt.tight_layout()
     plt.savefig(filename)
     print(f"Saved plot to {filename}")
+    
+    return client_class_counts
+
+def validate_and_save_json(client_indices, labels, num_classes, client_class_counts, alpha, num_samples, is_full):
+    # Check coverage and duplication
+    all_assigned_indices = []
+    for indices in client_indices.values():
+        all_assigned_indices.extend(indices)
+        
+    unique_assigned = set(all_assigned_indices)
+    expected_indices = set(range(len(labels)))
+    
+    missing = expected_indices - unique_assigned
+    duplicates = len(all_assigned_indices) - len(unique_assigned)
+    
+    exactly_once = (len(missing) == 0) and (duplicates == 0)
+    
+    # Simple heterogeneity metric: standard deviation of class counts across clients
+    # High std dev means high heterogeneity
+    heterogeneity_score = float(np.mean(np.std(client_class_counts, axis=0)))
+    
+    validation_data = {
+        "dataset_mode": "full" if is_full else "subset",
+        "number_of_samples": len(labels),
+        "number_of_clients": len(client_indices),
+        "alpha": alpha,
+        "seed": 42,
+        "samples_per_client": {k: len(v) for k, v in client_indices.items()},
+        "class_counts_per_client": {k: client_class_counts[k].tolist() for k in range(len(client_indices))},
+        "all_samples_assigned_exactly_once": exactly_once,
+        "missing_samples": len(missing),
+        "duplicated_samples": duplicates,
+        "heterogeneity_metric_mean_std": heterogeneity_score
+    }
+    
+    json_filename = f"stage1_validation_{'full' if is_full else 'subset'}.json"
+    with open(json_filename, "w") as f:
+        json.dump(validation_data, f, indent=4)
+        
+    print(f"Saved validation data to {json_filename}")
+    assert exactly_once, "Data split failed: missing or duplicated samples!"
 
 def main():
     parser = argparse.ArgumentParser(description="Run Dirichlet Data Split")
@@ -104,7 +146,9 @@ def main():
         filename = "subset_dirichlet_split.png"
 
     client_indices, labels = dirichlet_split(dataset, num_clients, alpha)
-    plot_class_distribution(client_indices, labels, 10, filename)
+    client_class_counts = plot_class_distribution(client_indices, labels, 10, filename)
+    
+    validate_and_save_json(client_indices, labels, 10, client_class_counts, alpha, num_samples, args.full)
     
 if __name__ == "__main__":
     main()
