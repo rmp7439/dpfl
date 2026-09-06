@@ -42,7 +42,13 @@ class FlowerClient(fl.client.NumPyClient):
         local_epochs = CONFIG.get("local_epochs", 1)
         
         from opacus import PrivacyEngine
-        privacy_engine = PrivacyEngine()
+        import warnings
+        
+        # PyTorch 2.x issues a benign warning when full backward hook is used without inputs requiring gradients.
+        # Opacus computes per-sample gradients using saved forward activations and grad_output, so grad_input is not needed.
+        warnings.filterwarnings("ignore", message="Full backward hook is firing when gradients are computed with respect to module outputs since no inputs require gradients.*")
+        
+        privacy_engine = PrivacyEngine(accountant="rdp")
         self.net, optimizer, train_loader = privacy_engine.make_private(
             module=self.net,
             optimizer=optimizer,
@@ -53,6 +59,9 @@ class FlowerClient(fl.client.NumPyClient):
         
         for epoch in range(1, local_epochs + 1):
             train(self.net, self.device, train_loader, optimizer, epoch)
+            
+        epsilon = privacy_engine.accountant.get_epsilon(delta=1e-5)
+        print(f"[Client {self.cid}] Opacus Accountant Epsilon: {epsilon:.4f}")
             
         self.net = self.net._module
             
