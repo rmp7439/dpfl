@@ -1,27 +1,54 @@
-# Small-subset config for fast iteration and debugging
-# This configuration is used for testing the end-to-end flow before scaling up.
+# Configuration for DP-FL experiments
 
-CONFIG = {
+SUBSET_CONFIG = {
     # Data parameters
-    "num_samples": 1000,       # Tiny subset of CIFAR-10 images
-    "batch_size": 32,          # Small batch size
+    "num_samples": 1000,
+    "batch_size": 32,
     
     # Federated Learning (Flower)
-    "num_clients": 3,          # 3 simulated clients for better visualization
-    "num_rounds": 2,           # Tiny number of federation rounds
-    "local_epochs": 1,         # Minimal local training
-    "fed_lr": 0.01,            # Learning rate for plain federated learning
-    "fed_optimizer": "SGD",    # Optimizer for plain federated learning
+    "num_clients": 3,
+    "num_rounds": 2,
+    "local_epochs": 1,
+    "fed_lr": 0.01,
+    "fed_optimizer": "SGD",
     
     # Data Split (Dirichlet)
-    "alpha": 0.1,              # Concentration parameter for Dirichlet split
+    "alpha": 0.1,
     
     # Centralized Baseline Training
-    "central_epochs": 2,       # Tiny number of epochs for small-subset testing
-    "central_lr": 0.001,       # Learning rate
+    "central_epochs": 2,
+    "central_lr": 0.001,
     
     # DP-SGD (Opacus) parameters
-    "dp_lr": 0.00025,
+    "dp_lr": 0.01,
     "noise_multiplier": 1.0,
     "max_grad_norm": 1.0,
 }
+
+FULL_CONFIG = {
+    # Data parameters
+    "num_samples": 50000,
+    "batch_size": 64,
+    
+    # Federated Learning (Flower)
+    "num_clients": 5,          # 5 clients for diversity, manageable on CPU
+    "num_rounds": 3,           # 3 communication rounds (CPU-feasible)
+    "local_epochs": 1,         # 1 local epoch per round
+    "fed_lr": 0.05,            # Higher LR for SGD to converge faster
+    "fed_optimizer": "SGD",
+    
+    # Data Split (Dirichlet)
+    "alpha": 0.1,
+    
+    # Centralized Baseline Training
+    "central_epochs": 5,       # 5 epochs: quick but real baseline on full CIFAR-10
+    "central_lr": 0.001,
+    
+    # DP-SGD (Opacus) parameters
+    "dp_lr": 0.05,
+    "noise_multiplier": 1.0,
+    "max_grad_norm": 1.0,
+}
+
+# Default to SUBSET. Scripts must explicitly import and use FULL_CONFIG when running full data.
+CONFIG = SUBSET_CONFIG

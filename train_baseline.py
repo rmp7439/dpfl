@@ -10,8 +10,9 @@ import os
 import csv
 import matplotlib.pyplot as plt
 import datetime
+import time
 
-from config import CONFIG
+from config import SUBSET_CONFIG, FULL_CONFIG
 from model import SimpleCNN
 
 def get_data(subset_size=None):
@@ -95,26 +96,28 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    batch_size = CONFIG.get("batch_size", 32)
-    epochs = CONFIG.get("central_epochs", 2)
-    lr = CONFIG.get("central_lr", 0.001)
-    num_samples = CONFIG.get("num_samples", 1000)
-    
-    mode = "full" if args.full else "subset"
     
     if args.full:
         print("Running centralized baseline on FULL CIFAR-10")
+        CONFIG = FULL_CONFIG
         trainset, testset = get_data(subset_size=None)
-        epochs = 15  # Override to 15 for a decent baseline
     else:
-        print(f"Running centralized baseline on subset ({num_samples} samples)")
-        trainset, testset = get_data(subset_size=num_samples)
+        CONFIG = SUBSET_CONFIG
+        print(f"Running centralized baseline on subset ({CONFIG.get('num_samples', 1000)} samples)")
+        trainset, testset = get_data(subset_size=CONFIG.get("num_samples", 1000))
         
-    train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False)
+    batch_size = CONFIG.get("batch_size", 32)
+    epochs = CONFIG.get("central_epochs", 2)
+    lr = CONFIG.get("central_lr", 0.001)
+    
+    mode = "full" if args.full else "subset"
+
+    train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=0)
+    test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=0)
     
     model = SimpleCNN().to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     
     history = {
         "train_loss": [], "train_acc": [],
@@ -122,10 +125,12 @@ def main():
     }
     
     best_test_acc = 0.0
+    start_time = time.time()
     
     for epoch in range(1, epochs + 1):
         tr_loss, tr_acc = train(model, device, train_loader, optimizer, epoch)
         te_loss, te_acc = test(model, device, test_loader)
+        scheduler.step()
         
         history["train_loss"].append(tr_loss)
         history["train_acc"].append(tr_acc)
@@ -135,6 +140,8 @@ def main():
         if te_acc > best_test_acc:
             best_test_acc = te_acc
             
+    runtime = time.time() - start_time
+    
     # Persistence
     out_dir = os.path.join("results", "stage2")
     os.makedirs(out_dir, exist_ok=True)
@@ -147,8 +154,8 @@ def main():
         "number_of_training_samples": len(trainset),
         "number_of_test_samples": len(testset),
         "seed": args.seed,
-        "model_name": "SimpleCNN",
-        "optimizer": "Adam",
+        "model_name": "SimpleCNN+GroupNorm",
+        "optimizer": "Adam+CosineAnnealingLR",
         "learning_rate": lr,
         "batch_size": batch_size,
         "number_of_epochs": epochs,
@@ -156,6 +163,7 @@ def main():
         "best_test_accuracy": best_test_acc,
         "convergence_definition": f"Best test accuracy achieved within {epochs} epochs",
         "device": str(device),
+        "runtime_seconds": runtime,
         "timestamp": datetime.datetime.now().isoformat()
     }
     

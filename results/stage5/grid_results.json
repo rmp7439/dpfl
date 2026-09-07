@@ -1,33 +1,34 @@
 [
     {
-        "dataset_mode": "subset",
-        "number_of_training_samples": 1000,
-        "number_of_test_samples": 200,
+        "dataset_mode": "full",
+        "number_of_training_samples": 50000,
+        "number_of_test_samples": 10000,
         "number_of_clients": 3,
         "alpha": 0.1,
         "sigma": 0.5,
         "C": 0.1,
         "delta": 1e-05,
-        "sample_rate": 0.06666666666666667,
-        "total_dp_steps": 30,
+        "sample_rate": 0.0012658227848101266,
+        "total_dp_steps": 2370,
         "batch_size": 32,
         "local_epochs": 1,
         "optimizer": "Adam",
         "model": "SimpleCNN",
         "device": "cpu",
         "GPU": "None",
-        "number_of_communication_rounds": 2,
+        "number_of_communication_rounds": 3,
         "per_round_test_accuracy": [
-            12.0,
-            7.0
+            13.23,
+            16.329999999999995,
+            20.94
         ],
-        "final_test_accuracy": 7.0,
-        "best_test_accuracy": 12.0,
-        "epsilon": 16.39529061101365,
-        "best_alpha": 1.9,
-        "runtime_seconds": 70.7936806678772,
+        "final_test_accuracy": 20.94,
+        "best_test_accuracy": 20.94,
+        "epsilon": 5.42343580467527,
+        "best_alpha": 3.1,
+        "runtime_seconds": 1527.4601516723633,
         "run_status": "Success",
-        "timestamp": "2026-09-06T22:12:42.488962"
+        "timestamp": "2026-09-06T22:50:01.360053"
     },
     {
         "dataset_mode": "subset",

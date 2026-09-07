@@ -14,7 +14,8 @@ import time
 import math
 from typing import Dict, List, Tuple
 
-from config import CONFIG
+from config import SUBSET_CONFIG, FULL_CONFIG
+CONFIG = SUBSET_CONFIG
 from model import SimpleCNN
 from train_baseline import get_data, train, test
 from data_split import dirichlet_split
@@ -48,8 +49,12 @@ class FlowerClient(fl.client.NumPyClient):
         local_epochs = CONFIG.get("local_epochs", 1)
         
         if self.use_dp:
-            lr = CONFIG.get("dp_lr", 0.00025)
-            optimizer = optim.Adam(self.net.parameters(), lr=lr)
+            lr = CONFIG.get("dp_lr", 0.01)
+            opt_name = CONFIG.get("fed_optimizer", "SGD")
+            if opt_name == "SGD":
+                optimizer = optim.SGD(self.net.parameters(), lr=lr, momentum=0.9)
+            else:
+                optimizer = optim.Adam(self.net.parameters(), lr=lr)
             
             from opacus import PrivacyEngine
             import warnings
@@ -159,14 +164,17 @@ def main():
     
     USE_DP = args.enable_dp
     
+    if args.full:
+        CONFIG = FULL_CONFIG
+        
     if args.sigma is not None:
         CONFIG["noise_multiplier"] = args.sigma
     if args.C is not None:
         CONFIG["max_grad_norm"] = args.C
-    
+        
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    
+        
     num_samples = CONFIG.get("num_samples", 1000)
     num_clients = CONFIG.get("num_clients", 3)
     alpha = CONFIG.get("alpha", 0.1)
@@ -176,17 +184,11 @@ def main():
     if args.full:
         print(f"Running Federation on FULL CIFAR-10, clients: {num_clients}, alpha: {alpha}")
         GLOBAL_TRAINSET, GLOBAL_TESTSET = get_data(subset_size=None)
-        
-        # Determine rounds based on device capability
-        if torch.cuda.is_available():
-            num_rounds = 15 # match baseline epochs if on GPU
-        else:
-            num_rounds = 3  # heavily reduce rounds on CPU to prevent endless execution
-            print("WARNING: GPU is not available. Reduced num_rounds to 3 to prevent indefinite execution.")
     else:
         print(f"Running Federation on subset ({num_samples} samples), clients: {num_clients}, alpha: {alpha}")
         GLOBAL_TRAINSET, GLOBAL_TESTSET = get_data(subset_size=num_samples)
-        num_rounds = CONFIG.get("num_rounds", 2)
+        
+    num_rounds = CONFIG.get("num_rounds", 2)
         
     CLIENT_INDICES, _ = dirichlet_split(GLOBAL_TRAINSET, num_clients, alpha)
     
@@ -348,7 +350,7 @@ def main():
             "total_dp_steps": total_steps,
             "batch_size": CONFIG.get("batch_size", 32),
             "local_epochs": CONFIG.get("local_epochs", 1),
-            "optimizer": "Adam",
+            "optimizer": CONFIG.get("fed_optimizer", "SGD"),
             "model": "SimpleCNN",
             "device": str(device),
             "GPU": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None",
