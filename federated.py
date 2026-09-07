@@ -298,19 +298,23 @@ def main():
         
     else:
         # Calculate RDP for Stage 4/5
+        # Use correct Opacus sample rate: q = batch_size / dataset_size
         alphas = [1.0 + x / 10.0 for x in range(1, 100)] + list(range(12, 64))
         
-        # We need the maximum steps across clients for bounding epsilon
-        max_steps_per_epoch = 0
+        # For privacy accounting under parallel composition (clients don't overlap),
+        # we bound the global epsilon by the maximum client epsilon.
+        # We use the client with the highest sample rate (smallest dataset) as the worst case.
         max_sample_rate = 0
+        max_steps_per_epoch = 0
         for i in range(num_clients):
             dataset_size = len(CLIENT_INDICES[i])
             batch_size = CONFIG.get("batch_size", 32)
+            # Opacus uses Poisson sampling: q = batch_size / dataset_size
+            sample_rate = batch_size / dataset_size
             steps_per_epoch = math.ceil(dataset_size / batch_size)
-            sample_rate = 1.0 / steps_per_epoch
-            if steps_per_epoch > max_steps_per_epoch:
-                max_steps_per_epoch = steps_per_epoch
+            if sample_rate > max_sample_rate:
                 max_sample_rate = sample_rate
+                max_steps_per_epoch = steps_per_epoch
                 
         steps_per_round = max_steps_per_epoch * CONFIG.get("local_epochs", 1)
         

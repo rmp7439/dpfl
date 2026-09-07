@@ -122,10 +122,12 @@ Privacy is tracked using **Rényi Differential Privacy (RDP)**:
 
 1. Each client uses Opacus `PrivacyEngine` which wraps the model/optimizer/dataloader.
 2. The accountant uses `compute_rdp(q, noise_multiplier, steps, orders)` from `opacus.accountants.analysis.rdp`.
-3. Sampling rate `q = 1 / ceil(dataset_size / batch_size)` — one step samples approximately one batch.
+3. **Sampling rate `q = batch_size / dataset_size`** — Opacus uses Poisson sampling where each sample is included independently with probability `q`.
 4. Steps compose additively under RDP: after R rounds × T steps/round = R×T total steps.
 5. Optimal Rényi order α is found by minimizing ε(δ) = RDP_α + log(1/δ)/(α-1).
-6. Under parallel composition, client privacy losses do **not** sum — global ε is bounded by max client ε.
+6. Under parallel composition (clients have disjoint data), global ε is bounded by max client ε — we use the client with the highest sample rate (smallest dataset) as the worst case.
+7. `sigma` (noise_multiplier) controls the Gaussian noise level and directly affects epsilon.
+8. `C` (max_grad_norm) controls clipping threshold — affects training utility but does NOT appear in RDP formula.
 
 ---
 
@@ -164,7 +166,7 @@ results/
 | Stage 2 | ✅ COMPLETE | Full baseline: 74.87% accuracy (30 epochs, CPU) |
 | Stage 3 | ✅ COMPLETE | Full FedAvg: 33.26% accuracy (3 rounds, 5 clients, non-DP) |
 | Stage 4 | ⚠️ PARTIAL | Subset validation passed, full run requires Colab |
-| Stage 5 | ⚠️ PARTIAL | 1/8 full configs complete (sigma=0.5, C=0.1), remaining 7 need Colab |
+| Stage 5 | ⚠️ PARTIAL | 0/8 full configs complete, all 8 need Colab |
 
 **To complete Stage 5 on Colab:**
 ```bash
