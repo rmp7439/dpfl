@@ -132,9 +132,14 @@ def main():
     np.random.seed(42)
     torch.manual_seed(42)
     
-    num_samples = CONFIG.get("num_samples", 1000)
-    num_clients = CONFIG.get("num_clients", 3)
-    alpha = CONFIG.get("alpha", 0.1)
+    if args.full:
+        from config import FULL_CONFIG as active_config
+    else:
+        from config import SUBSET_CONFIG as active_config
+
+    num_samples = active_config.get("num_samples", 1000)
+    num_clients = active_config.get("num_clients", 3)
+    alpha = active_config.get("alpha", 0.1)
     
     if args.full:
         print(f"Running Dirichlet split on FULL CIFAR-10, clients: {num_clients}, alpha: {alpha}")

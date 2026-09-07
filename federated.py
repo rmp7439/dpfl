@@ -70,34 +70,52 @@ class FlowerClient(fl.client.NumPyClient):
                 max_grad_norm=CONFIG.get("max_grad_norm", 1.0),
             )
             
+            actual_sample_rate = getattr(train_loader, "sample_rate", -1.0)
+            actual_steps = len(train_loader)
+            
+            grad_sample_valid = False
+            grad_shapes = {}
+            actual_batch_size = None
+            opt_class = type(optimizer).__name__
+            
+            if not os.path.exists("results/stage4/validation.json"):
+                batch_x, batch_y = next(iter(train_loader))
+                actual_batch_size = len(batch_x)
+                optimizer.zero_grad()
+                loss = torch.nn.CrossEntropyLoss()(self.net(batch_x.to(self.device)), batch_y.to(self.device))
+                loss.backward()
+                for name, param in self.net.named_parameters():
+                    if param.requires_grad and hasattr(param, "grad_sample"):
+                        grad_sample_valid = True
+                        grad_shapes[name] = list(param.grad_sample.shape)
+                optimizer.zero_grad()
+            
             for epoch in range(1, local_epochs + 1):
                 train(self.net, self.device, train_loader, optimizer, epoch)
                 
             epsilon = privacy_engine.accountant.get_epsilon(delta=1e-5)
             print(f"[Client {self.cid}] Opacus Accountant Epsilon: {epsilon:.4f}")
             
-            # Validation logic for grad_sample
-            grad_sample_valid = True
-            grad_shapes = {}
-            for name, param in self.net.named_parameters():
-                if param.requires_grad:
-                    if not hasattr(param, "grad_sample"):
-                        grad_sample_valid = False
-                    else:
-                        grad_shapes[name] = list(param.grad_sample.shape)
-                        
-            # Save validation to a file if it's the first client's first round
             if not os.path.exists("results/stage4/validation.json"):
                 os.makedirs("results/stage4", exist_ok=True)
                 val_data = {
                     "grad_sample_present": grad_sample_valid,
                     "grad_sample_shapes": grad_shapes,
                     "clipping_C": CONFIG.get("max_grad_norm", 1.0),
-                    "noise_sigma": CONFIG.get("noise_multiplier", 1.0)
+                    "noise_sigma": CONFIG.get("noise_multiplier", 1.0),
+                    "actual_batch_size_probed": actual_batch_size,
+                    "optimizer_class": opt_class
                 }
                 with open("results/stage4/validation.json", "w") as f:
                     json.dump(val_data, f, indent=4)
                     
+            metrics = {
+                "client_id": str(self.cid),
+                "sample_rate": float(actual_sample_rate),
+                "dp_steps": int(actual_steps * local_epochs),
+                "sigma": float(CONFIG.get("noise_multiplier", 1.0)),
+                "C": float(CONFIG.get("max_grad_norm", 1.0))
+            }
             self.net = self.net._module
         else:
             lr = CONFIG.get("fed_lr", 0.01)
@@ -109,8 +127,10 @@ class FlowerClient(fl.client.NumPyClient):
                 
             for epoch in range(1, local_epochs + 1):
                 train(self.net, self.device, self.train_loader, optimizer, epoch)
+            metrics = {}
                 
-        return self.get_parameters(config={}), len(self.train_loader.dataset), {}
+        return self.get_parameters(config={}), len(self.train_loader.dataset), metrics
+
         
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
@@ -133,7 +153,23 @@ def client_fn(cid: str) -> FlowerClient:
     
     return FlowerClient(cid, net, train_loader, test_loader, device, use_dp=USE_DP)
 
+
+def fit_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, fl.common.Scalar]]]) -> Dict[str, fl.common.Scalar]:
+    if not results or not results[0][1].get("client_id"):
+        return {}
+    client_stats = []
+    for _, m in results:
+        client_stats.append({
+            "client_id": m["client_id"],
+            "sample_rate": m["sample_rate"],
+            "dp_steps": m["dp_steps"],
+            "sigma": m["sigma"],
+            "C": m["C"]
+        })
+    return {"client_stats": json.dumps(client_stats)}
+
 def evaluate_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, float]]]) -> Dict[str, float]:
+
     """Aggregate evaluation metrics over clients."""
     if not results:
         return {}
@@ -151,7 +187,7 @@ def load_baseline_result(mode, seed):
     return None
 
 def main():
-    global GLOBAL_TRAINSET, GLOBAL_TESTSET, CLIENT_INDICES, USE_DP
+    global GLOBAL_TRAINSET, GLOBAL_TESTSET, CLIENT_INDICES, USE_DP, CONFIG
     
     parser = argparse.ArgumentParser(description="Run Flower Federation")
     parser.add_argument("--full", action="store_true", help="Run on full CIFAR-10 instead of subset")
@@ -199,6 +235,7 @@ def main():
         min_evaluate_clients=num_clients,
         min_available_clients=num_clients,
         evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
+        fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
     )
     
     print(f"CUDA Available: {torch.cuda.is_available()}")
@@ -213,6 +250,12 @@ def main():
     
     start_time = time.time()
     
+    try:
+        import ray._private.utils
+        ray._private.utils.set_kill_child_on_death_win32 = lambda *args, **kwargs: None
+    except Exception:
+        pass
+        
     history = fl.simulation.start_simulation(
         client_fn=client_fn,
         num_clients=num_clients,
@@ -297,45 +340,65 @@ def main():
         print(f"Results saved to {out_dir}")
         
     else:
-        # Calculate RDP for Stage 4/5
-        # Use correct Opacus sample rate: q = batch_size / dataset_size
+        # Calculate RDP for Stage 4/5 based on actual client accounting
         alphas = [1.0 + x / 10.0 for x in range(1, 100)] + list(range(12, 64))
         
-        # For privacy accounting under parallel composition (clients don't overlap),
-        # we bound the global epsilon by the maximum client epsilon.
-        # We use the client with the highest sample rate (smallest dataset) as the worst case.
-        max_sample_rate = 0
-        max_steps_per_epoch = 0
-        for i in range(num_clients):
-            dataset_size = len(CLIENT_INDICES[i])
-            batch_size = CONFIG.get("batch_size", 32)
-            # Opacus uses Poisson sampling: q = batch_size / dataset_size
-            sample_rate = batch_size / dataset_size
-            steps_per_epoch = math.ceil(dataset_size / batch_size)
-            if sample_rate > max_sample_rate:
-                max_sample_rate = sample_rate
-                max_steps_per_epoch = steps_per_epoch
-                
-        steps_per_round = max_steps_per_epoch * CONFIG.get("local_epochs", 1)
+        client_rdp_state = {str(i): np.zeros(len(alphas)) for i in range(num_clients)}
+        client_cumulative_steps = {str(i): 0 for i in range(num_clients)}
         
-        # Calculate per-round epsilon
         round_stats = []
-        for r, acc in enumerate(acc_history):
-            round_idx = r + 1
-            total_steps_r = steps_per_round * round_idx
-            rdp = compute_rdp(q=max_sample_rate, noise_multiplier=CONFIG.get("noise_multiplier", 1.0), steps=total_steps_r, orders=alphas)
-            epsilon_r, best_alpha_r = get_privacy_spent(orders=alphas, rdp=rdp, delta=1e-5)
+        fit_metrics = history.metrics_distributed_fit.get("client_stats", [])
+        
+        for r_idx, acc in enumerate(acc_history):
+            round_num = r_idx + 1
+            stats_str = None
+            for r, s in fit_metrics:
+                if r == round_num:
+                    stats_str = s
+                    break
+                    
+            if not stats_str:
+                continue
+                
+            client_stats = json.loads(stats_str)
+            round_epsilons = {}
+            
+            for c_stat in client_stats:
+                cid = str(c_stat["client_id"])
+                q = float(c_stat["sample_rate"])
+                steps = int(c_stat["dp_steps"])
+                sigma = float(c_stat["sigma"])
+                
+                rdp_increment = compute_rdp(q=q, noise_multiplier=sigma, steps=steps, orders=alphas)
+                client_rdp_state[cid] += rdp_increment
+                client_cumulative_steps[cid] += steps
+                
+                eps, best_alpha = get_privacy_spent(orders=alphas, rdp=client_rdp_state[cid], delta=1e-5)
+                round_epsilons[cid] = {
+                    "epsilon": eps, 
+                    "best_alpha": best_alpha, 
+                    "cumulative_steps": client_cumulative_steps[cid], 
+                    "sample_rate": q, 
+                    "round_steps": steps
+                }
+                
+            worst_client = max(round_epsilons.keys(), key=lambda k: round_epsilons[k]["epsilon"])
+            worst_eps = round_epsilons[worst_client]["epsilon"]
+            worst_alpha = round_epsilons[worst_client]["best_alpha"]
+            
             round_stats.append({
-                "round": round_idx,
-                "dp_steps": total_steps_r,
-                "epsilon": epsilon_r,
-                "best_alpha": best_alpha_r,
-                "test_acc": acc
+                "round": round_num,
+                "global_epsilon": worst_eps,
+                "best_alpha": worst_alpha,
+                "test_acc": acc,
+                "worst_client": worst_client,
+                "client_details": round_epsilons
             })
             
-        final_epsilon = round_stats[-1]["epsilon"] if round_stats else 0
+        final_epsilon = round_stats[-1]["global_epsilon"] if round_stats else 0
         final_best_alpha = round_stats[-1]["best_alpha"] if round_stats else 0
-        total_steps = steps_per_round * num_rounds
+        total_steps = max(client_cumulative_steps.values()) if client_cumulative_steps else 0
+        max_sample_rate = max([round_stats[-1]["client_details"][cid]["sample_rate"] for cid in client_cumulative_steps]) if round_stats else 0
         
         out_dir = args.output_dir
         os.makedirs(out_dir, exist_ok=True)
@@ -374,9 +437,10 @@ def main():
             
         with open(os.path.join(out_dir, "rounds.csv"), "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["round", "dp_steps", "epsilon", "best_alpha", "test_acc"])
+            writer.writerow(["round", "max_dp_steps", "global_epsilon", "best_alpha", "test_acc"])
             for stat in round_stats:
-                writer.writerow([stat["round"], stat["dp_steps"], stat["epsilon"], stat["best_alpha"], stat["test_acc"]])
+                max_steps = max([d["round_steps"] for d in stat["client_details"].values()]) if "client_details" in stat else 0
+                writer.writerow([stat["round"], max_steps, stat["global_epsilon"], stat["best_alpha"], stat["test_acc"]])
                 
         # Comparison with Stage 2 and Stage 3 - we disable automatic plotting in grid search mode if output_dir is customized
         if args.output_dir == "results/stage4":

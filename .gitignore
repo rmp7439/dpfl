@@ -6,3 +6,6 @@ wandb/
 .ipynb_checkpoints/
 *.pt
 *.pth
+
+.pytest_cache/
+.venv/
