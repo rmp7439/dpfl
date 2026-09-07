@@ -41,7 +41,7 @@ FULL_CONFIG = {
     "alpha": 0.1,
     
     # Centralized Baseline Training
-    "central_epochs": 5,       # 5 epochs: quick but real baseline on full CIFAR-10
+    "central_epochs": 30,      # 30 epochs for reasonable convergence on CPU
     "central_lr": 0.001,
     
     # DP-SGD (Opacus) parameters

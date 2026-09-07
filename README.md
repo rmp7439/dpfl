@@ -14,6 +14,19 @@ Train a CNN on CIFAR-10 across simulated clients under Non-IID data heterogeneit
 
 ---
 
+## Important: Environment Requirements
+
+**Full CIFAR-10 experiments require a GPU environment (Colab or local GPU).**
+
+The federated simulation uses Ray, which has known issues on Windows. Full experiments (Stage 3 full, Stage 4 full, Stage 5 grid) should be run on:
+- Google Colab (free tier T4 GPU works)
+- Linux/macOS with Ray working
+- Windows WSL2 with Ray configured
+
+Subset experiments (1000 samples) work on Windows CPU.
+
+---
+
 ## Stage Overview
 
 | Stage | Description | Script |
@@ -99,9 +112,7 @@ python plot_stage5.py
 | δ | 1e-5 |
 | Seed | 42 |
 
-> **Note**: GPU is not available in the current environment. All full-data runs execute on CPU.
-> Stage 2 baseline uses 5 epochs; federated stages use 3 communication rounds.
-> These are deliberately constrained for CPU feasibility while producing genuine experimental evidence.
+> **Note**: Full experiments (Stage 3/4/5 on full CIFAR-10) require Colab/GPU due to Ray compatibility issues on Windows. Stage 2 centralized baseline can run on CPU (30 epochs, ~41 minutes).
 
 ---
 
@@ -145,8 +156,24 @@ results/
 | `dataset_mode: "subset"` in JSON | Validation / debug run |
 | `dataset_mode: "full"` in JSON | Official experiment |
 
-Subset results in `results/stage5/per_run/` from the previous session are *validation runs*, not official results.
-Official full-data grid results overwrite these when `grid_search.py` (without `--subset`) completes.
+### Current Status (as of 2026-09-07)
+
+| Stage | Status | Notes |
+|-------|--------|-------|
+| Stage 1 | ✅ COMPLETE | Full and subset splits validated, all samples assigned exactly once |
+| Stage 2 | ✅ COMPLETE | Full baseline: 74.87% accuracy (30 epochs, CPU) |
+| Stage 3 | ✅ COMPLETE | Full FedAvg: 33.26% accuracy (3 rounds, 5 clients, non-DP) |
+| Stage 4 | ⚠️ PARTIAL | Subset validation passed, full run requires Colab |
+| Stage 5 | ⚠️ PARTIAL | 1/8 full configs complete (sigma=0.5, C=0.1), remaining 7 need Colab |
+
+**To complete Stage 5 on Colab:**
+```bash
+# On Colab (GPU runtime):
+!pip install -r requirements.txt
+!pip uninstall -y triton  # Fix for Ray crash on Colab
+!python grid_search.py  # Runs all 8 configs on full CIFAR-10
+!python plot_stage5.py  # Generate final plots
+```
 
 ---
 

@@ -7,11 +7,11 @@
     "optimizer": "Adam+CosineAnnealingLR",
     "learning_rate": 0.001,
     "batch_size": 64,
-    "number_of_epochs": 5,
-    "final_test_accuracy": 61.73,
-    "best_test_accuracy": 61.73,
-    "convergence_definition": "Best test accuracy achieved within 5 epochs",
+    "number_of_epochs": 30,
+    "final_test_accuracy": 74.87,
+    "best_test_accuracy": 74.87,
+    "convergence_definition": "Best test accuracy achieved within 30 epochs",
     "device": "cpu",
-    "runtime_seconds": 488.67146039009094,
-    "timestamp": "2026-09-07T07:16:48.904678"
+    "runtime_seconds": 2487.7280197143555,
+    "timestamp": "2026-09-07T08:19:38.528874"
 }
