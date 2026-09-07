@@ -80,7 +80,7 @@ def main():
         rounds = run["_rounds"]
         if not rounds:
             continue
-        epsilons = [rd["epsilon"] for rd in rounds]
+        epsilons = [rd["global_epsilon"] for rd in rounds]
         accs = [rd["test_acc"] for rd in rounds]
         label = f"σ={s}, C={c}"
         ax.plot(epsilons, accs,
@@ -132,7 +132,7 @@ def main():
         if not rounds:
             continue
         round_nums = [int(rd["round"]) for rd in rounds]
-        epsilons = [rd["epsilon"] for rd in rounds]
+        epsilons = [rd["global_epsilon"] for rd in rounds]
         ax2.plot(round_nums, epsilons,
                  color=color_map[s],
                  linestyle=style_map[c],
