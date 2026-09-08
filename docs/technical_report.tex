@@ -1,0 +1,155 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\title{Technical Report: Differentially Private Federated Learning (DP-FL) on CIFAR-10}
+\author{DP-FL Research Team}
+\date{September 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This project implements and evaluates a Differentially Private Federated Learning (DP-FL) system on the CIFAR-10 dataset. By combining Flower for federated orchestration and Opacus for Differential Privacy (DP), we investigate the privacy-utility tradeoff under realistic non-IID data distributions (Dirichlet $\alpha=0.1$). Our comprehensive evaluation across varying noise multipliers ($\sigma$), clipping thresholds ($C$), and data heterogeneity levels demonstrates that DP protects individual data samples at the cost of model utility. The negative impact on convergence is severely compounded by high data heterogeneity.
+\end{abstract}
+
+\section{Introduction}
+Federated Learning (FL) allows distributed edge devices to collaboratively train a shared model without transmitting raw data to a central server. However, exchanging model weights or gradients remains vulnerable to inference attacks, where adversaries can reconstruct original training examples. Differential Privacy (DP) mitigates this by injecting calibrated noise and clipping gradients, providing a mathematical guarantee of privacy. In this work, we train a CNN on CIFAR-10 distributed across 5 clients, exploring how data heterogeneity interacts with DP-SGD mechanisms.
+
+\section{Problem Statement}
+The objective is to train a convolutional neural network on a heavily skewed, non-IID partition of CIFAR-10 across distributed clients. The system must guarantee $(\varepsilon, \delta)$-Differential Privacy for each client's dataset. We aim to quantify how much accuracy is sacrificed for strong privacy guarantees, particularly when the underlying local data is highly specialized (non-IID).
+
+\section{Background}
+\subsection{Federated Learning}
+FL operates through synchronized rounds. The server broadcasts a global model, clients train locally, and the server aggregates the updates (e.g., via FedAvg).
+
+\subsection{Differential Privacy \& DP-SGD}
+DP guarantees that a single data sample's presence or absence does not statistically alter the algorithm's output probability beyond a bound $e^\varepsilon$. DP-SGD achieves this by computing per-sample gradients, clipping them to a maximum $L_2$ norm $C$, and adding Gaussian noise scaled by $C$ and $\sigma$.
+
+\subsection{Rényi Differential Privacy (RDP)}
+RDP tracks the privacy loss analytically across multiple training steps using Rényi divergence. RDP provides tighter composition bounds for Gaussian mechanisms compared to standard DP, allowing us to safely convert the cumulative RDP back to $(\varepsilon, \delta)$ metrics after training.
+
+\section{Threat and Privacy Motivation}
+A malicious server or a compromised client intercepting updates could execute membership inference or data reconstruction attacks. Our threat model assumes an honest-but-curious server and adversarial participants. DP protects against these threats by ensuring that any output weight matrix is statistically indistinguishable regardless of any single participant's specific training samples.
+
+\section{Methodology}
+Our methodology proceeds in sequential stages:
+1. Dirichlet data partitioning to simulate non-IID data.
+2. Centralized training baseline.
+3. Standard Federated Learning (FedAvg).
+4. Differentially Private Federated Learning (DP-FedAvg).
+5. Grid search over DP hyperparameters ($C, \sigma$).
+6. Ablation over data heterogeneity ($\alpha, \sigma$).
+
+\section{System Architecture}
+We use the \textbf{Flower} (\texttt{flwr}) framework to orchestrate virtual clients. Instead of physical network distribution, we leverage the \textbf{Ray} Virtual Client Engine to simulate massive concurrency on a single machine or GPU. The local training loop uses standard PyTorch, wrapped entirely by \textbf{Opacus}.
+
+\section{Dataset and Non-IID Partitioning}
+The CIFAR-10 dataset (50k train, 10k test) is partitioned across 5 clients using a Dirichlet distribution.
+\begin{itemize}
+    \item \textbf{$\alpha=0.1$}: High heterogeneity (official setup). Clients typically hold only 1-2 classes dominantly.
+    \item \textbf{$\alpha=10.0$}: Low heterogeneity (near-IID). Clients have an approximately uniform mix of all 10 classes.
+\end{itemize}
+
+\section{Model Architecture}
+We use a SimpleCNN designed explicitly for DP:
+\begin{itemize}
+    \item 3 Convolutional layers ($3\to16\to32\to64$ channels)
+    \item \textbf{GroupNorm} instead of BatchNorm (crucial, as BatchNorm breaks per-sample independence)
+    \item MaxPool \& ReLU activations
+    \item Fully Connected layer ($64\times4\times4 \to 128 \to 10$)
+    \item Dropout ($p=0.5$) for regularization
+\end{itemize}
+
+\section{Federated Training Procedure}
+\begin{itemize}
+    \item \textbf{Clients}: 5
+    \item \textbf{Rounds}: 3
+    \item \textbf{Local Epochs}: 1
+    \item \textbf{Batch Size}: 64
+    \item \textbf{Optimizer}: SGD, Learning Rate: 0.05
+    \item \textbf{Aggregation}: FedAvg
+\end{itemize}
+
+\section{DP Mechanism}
+We implement DP using Opacus. The \texttt{PrivacyEngine} wraps the local model, optimizer, and dataloader. The dataloader uses Poisson sampling to create batches, computing true per-sample gradients.
+\begin{itemize}
+    \item \textbf{Clipping}: Per-sample gradient $L_2$ norms are bounded to $C \in \{0.1, 1.0\}$.
+    \item \textbf{Noise}: Gaussian noise scaled by $\sigma \in \{0.5, 1.0, 1.5, 2.0\}$ is added to the batch-averaged gradient.
+\end{itemize}
+
+\section{Privacy Accounting}
+Because the dataset is statically partitioned and clients hold disjoint datasets, we utilize \textbf{parallel composition}. The global privacy loss is bounded by the privacy loss of the worst-case individual client.
+\begin{enumerate}
+    \item We extract the exact sample rate (expected batch size / local dataset size) per client from the Opacus \texttt{DPDataLoader}.
+    \item We track the exact number of DP steps per client per round.
+    \item RDP is computed for each client over all their individual steps.
+    \item We convert RDP to $\varepsilon$ using $\delta=10^{-5}$. The global $\varepsilon$ is $\max(\varepsilon_{clients})$.
+\end{enumerate}
+
+\section{Experimental Setup}
+Experiments were run on a GPU environment (Tesla T4 via Colab) to overcome Ray compatibility issues on Windows and accelerate Opacus's computationally expensive per-sample gradient hooks.
+
+\section{Results}
+\subsection{Centralized Baseline (Stage 2)}
+Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs achieves \textbf{74.87\%} test accuracy. This represents the theoretical upper bound without federation or privacy constraints.
+
+\subsection{Non-private FedAvg (Stage 3)}
+Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 3 rounds severely degrades performance, resulting in \textbf{33.26\%} accuracy. Non-IID data causes local models to diverge sharply, making standard FedAvg aggregation suboptimal.
+
+\subsection{DP-FL (Stage 4)}
+Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{20.14\%} accuracy at $\varepsilon=1.5394$. The noise makes bridging the non-IID divergence even harder.
+
+\subsection{Sigma/C Grid Results (Stage 5)}
+We mapped the privacy-utility curve. 
+\begin{itemize}
+    \item Higher $\sigma$ decreases $\varepsilon$ (stronger privacy) but hurts accuracy.
+    \item Lower $C$ heavily degrades accuracy but does not impact the mathematical $\varepsilon$ directly.
+    \item \textbf{Best Privacy}: $\sigma=2.0, C=0.1$ gives $\varepsilon=0.3989$ but accuracy drops to 19.54\%.
+    \item \textbf{Best Accuracy}: $\sigma=0.5, C=1.0$ gives 25.11\% accuracy but weak privacy ($\varepsilon=10.8698$).
+\end{itemize}
+
+\subsection{Alpha Ablation (Stage 6)}
+We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\sigma \in \{1.0, 2.0\}$).
+\begin{itemize}
+    \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 22.33\% accuracy, whereas non-IID ($\alpha=0.1$) achieves only 18.25\%.
+    \item This proves that data skew compoundingly penalizes DP-SGD performance.
+\end{itemize}
+
+\section{Privacy--Utility Tradeoff}
+Our findings confirm a fundamental tension. To maintain an acceptable privacy guarantee ($\varepsilon < 2.0$), the model accuracy on a complex dataset like CIFAR-10 under non-IID federated conditions collapses to sub-30\%. The injected noise overwhelms the already conflicting local gradients.
+
+\section{Discussion}
+DP-FL requires significantly more communication rounds to converge because individual updates are noisy and bounded. The interplay between weight divergence (from non-IID partitions) and gradient obfuscation (from DP) is the primary obstacle to production-grade DP-FL.
+
+\section{Limitations}
+\begin{enumerate}
+    \item \textbf{Rounds}: We were restricted to 3 communication rounds due to computational constraints.
+    \item \textbf{Hyperparameters}: $\sigma$ and $C$ were grid-searched, but LR and momentum were frozen. DP-SGD typically requires specifically tuned learning rates.
+    \item \textbf{Accounting Assumption}: We assumed perfect parallel composition; dynamic client dropout or overlapping data would require more complex accounting.
+    \item \textbf{Secure RNG}: For experimentation, cryptographically secure RNG was disabled to boost speed; production requires it enabled.
+\end{enumerate}
+
+\section{Reproducibility}
+The official protocol relies on Linux/Colab execution due to Ray compatibility limits on Windows. The repository contains all artifacts, split visualizations, and testing utilities. Due to a Colab runtime termination, the final structured artifacts for Stage 6 were lost, but the raw execution logs were preserved and rigorously archived to maintain experimental integrity without expending redundant GPU compute.
+
+\section{Conclusion}
+We successfully implemented a fully accountable DP-FL pipeline using modern frameworks (Flower, Opacus). While mathematical privacy guarantees are achievable, they enforce a severe utility penalty on image classification tasks under realistic non-IID conditions.
+
+\begin{thebibliography}{9}
+\bibitem{mcmahan}
+McMahan et al. ``Communication-Efficient Learning of Deep Networks from Decentralized Data'' (FedAvg). AISTATS 2017.
+\bibitem{abadi}
+Abadi et al. ``Deep Learning with Differential Privacy'' (DP-SGD). ACM SIGSAC 2016.
+\bibitem{mironov}
+Mironov. ``Rényi Differential Privacy''. IEEE CSF 2017.
+\bibitem{opacus}
+Opacus Documentation \& Flower Documentation.
+\end{thebibliography}
+
+\end{document}

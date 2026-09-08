@@ -4,46 +4,48 @@
 
 | Build-Plan Requirement | Status | Evidence | Action Required |
 | --- | --- | --- | --- |
-| 1. Stage 1: Dirichlet Split | DONE | `data_split.py`, `stage1_validation_full.json` | None |
-| 2. Stage 2: Centralized Baseline | DONE | `train_baseline.py`, Results logged | None |
-| 3. Stage 3: Non-private FL | DONE | `federated.py`, test coverage | None |
-| 4. Stage 4: DP-SGD FL | DONE | `federated.py --enable-dp` | None |
-| 5. Stage 5: Grid Search | DONE | `grid_search.py`, `results/stage5/grid_results.json` | None |
-| 6. Stage 6: Ablation Studies | DONE | `stage6_ablation.py`, `results/stage6_console_archive.md` | None (Archived from logs) |
-| 7. Privacy Accounting (RDP) | DONE | `test_accounting.py`, `opacus.accountants.analysis.rdp` | None |
-| 8. Comprehensive Tests | DONE | `test_comprehensive.py` (34 tests passing) | None |
-| 9. Figures & Plots | DONE | `results/stage5/*.png`, `results/stage6/*.png` | None |
-| 10. Technical Report | DONE | `docs/DPFL_Technical_Report.md` | None |
-| 11. Defense Notes | DONE | `docs/FINAL_DEFENSE_NOTES.md` | None |
-| 12. README / Reproducibility | DONE | `README.md` updated with architecture & reproducibility | None |
+| 1. Stage 1: Dirichlet Split | DONE | `src/dpfl/data.py`, `archive/validation/` | None |
+| 2. Stage 2: Centralized Baseline | DONE | `scripts/train_baseline.py`, `results/baseline/` | None |
+| 3. Stage 3: Non-private FL | DONE | `scripts/run_federated.py`, `results/federated/` | None |
+| 4. Stage 4: DP-SGD FL | DONE | `results/federated/stage4/` | None |
+| 5. Stage 5: Grid Search | DONE | `scripts/run_grid.py`, `results/dp_grid/` | None |
+| 6. Stage 6: Ablation Studies | DONE | `scripts/run_ablation.py`, `results/ablations/` | None (Archived from logs) |
+| 7. Privacy Accounting (RDP) | DONE | `tests/test_accounting.py`, `tests/test_dp_steps.py` | None |
+| 8. Comprehensive Tests | DONE | `tests/test_comprehensive.py` (34 tests passing) | None |
+| 9. Figures & Plots | DONE | `figures/` (re-rendered at 300 DPI) | None |
+| 10. Technical Report | DONE | `docs/technical_report.tex` | None |
+| 11. Defense Notes | DONE | `docs/defense_notes.md` | None |
+| 12. README / Reproducibility | DONE | `README.md` fully rewritten | None |
 
 ## Final Summary
 
 - **What is completely finished**:
-  - The entirety of the DP-FL pipeline is implemented, heavily tested, and functional.
-  - All experimental data grids (Stage 5) are complete.
-  - All final visual plots are generated.
-  - Comprehensive documentation, technical reports, and defense notes are written.
-  - 34/34 Unit and integration tests pass successfully.
+  - The repository has been completely restructured into a professional ML codebase (`src/dpfl/`, `scripts/`, `tests/`, `results/`, `figures/`, `archive/`).
+  - Python imports across all scripts and tests have been updated and validated.
+  - The formal `docs/technical_report.tex` has been created, capturing all metrics and methodologies accurately.
+  - Figures were regenerated at publication quality ($\ge 300$ DPI) and consolidated into `figures/`.
+  - 34/34 unit and integration tests successfully pass under the new repository structure.
+  - `README.md` has been entirely rewritten to match the final structure and explain reproducibility.
   
 - **What was newly completed**:
-  - The formal `docs/DPFL_Technical_Report.md`.
-  - The `docs/FINAL_DEFENSE_NOTES.md` providing a high-level review guide.
-  - This `FINAL_PROJECT_AUDIT.md` document validating the final repo state.
+  - Full codebase reorganization.
+  - `docs/technical_report.tex`.
+  - `docs/defense_notes.md`.
+  - `FINAL_PROJECT_AUDIT.md` validation.
   
 - **What was intentionally NOT rerun**:
-  - The Stage 6 execution script (`stage6_ablation.py`) was not rerun on a GPU. The output of the official experiment run on 2026-09-08 was manually archived and validated, thus preserving experimental integrity and saving massive computational expense.
+  - Stages 5 and 6 full GPU experiments. Preserving the exact official results in `results/dp_grid/` and `results/ablations/` safely maintained the research integrity without redundantly expending compute.
   
 - **Any remaining human-only task**:
-  - A user must convert the `docs/DPFL_Technical_Report.md` to LaTeX if a PDF is strictly mandated by the academic venue or coursework.
-  - A user may wish to execute the whole pipeline strictly inside a dedicated GPU environment (e.g., Linux/Colab) if they desire to independently verify the metrics.
+  - Compile `docs/technical_report.tex` into PDF using a LaTeX engine (e.g., `pdflatex docs/technical_report.tex`).
+  - Perform `git push origin main` if an upstream repository is attached.
   
-- **Exact final experimental numbers**:
+- **Exact final experimental numbers preserved**:
   - Stage 2 (Centralized Baseline): 74.87%
   - Stage 3 (Non-private FL): 33.26%
-  - Stage 4 (DP-FL Default): 20.14% (Epsilon 1.5394)
+  - Stage 4 (DP-FL Default): 20.14% ($\varepsilon=1.5394$)
   - Stage 5 (Best Privacy): 19.54% at Epsilon 0.3989 ($\sigma=2.0, C=0.1$)
   - Stage 6 (Alpha Impact): Near-IID ($\alpha=10.0, \sigma=1.0$) gave 22.33% vs Non-IID ($\alpha=0.1, \sigma=1.0$) giving 18.25% at roughly identical $\varepsilon$.
 
 - **Exact Git commit/hash after your changes**:
-  - The project is fully committed up to the last stage. The commit hash will be finalized in the final system terminal output.
+  - Provided in the final status output after commit.

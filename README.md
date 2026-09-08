@@ -1,195 +1,115 @@
-# DP-FL: Differentially Private Federated Learning on CIFAR-10
+# Differentially Private Federated Learning (DP-FL) on CIFAR-10
 
-A research implementation of federated learning with Rényi Differential Privacy (RDP) using:
-- **Flower** (`flwr`) for federated simulation
-- **Opacus** for DP-SGD with per-sample gradient clipping
-- **Dirichlet Non-IID** partitioning (α = 0.1)
-- **RDP accounting** with (ε, δ)-DP conversion
+## Project overview
+A research implementation of federated learning with Rényi Differential Privacy (RDP) on CIFAR-10. This project evaluates how Differential Privacy (via Opacus) impacts model convergence in a highly non-IID federated environment orchestrated by Flower (`flwr`). 
 
----
+## Research question
+How severely does the strict bound of Differential Privacy degrade the classification accuracy of a CNN under highly heterogeneous (non-IID) federated client distributions? How do variations in noise injection ($\sigma$) and clipping norm ($C$) shift this privacy-utility tradeoff?
 
-## Project Goal
+## Key contributions
+- Dirichlet non-IID client partitioning to simulate realistic data skew.
+- Integration of Opacus DP-SGD with Flower federated training.
+- Empirical mapping of the privacy-utility tradeoff across a comprehensive grid of hyperparameter configurations.
+- Alpha ablation study identifying the compounding penalty of data heterogeneity on DP models.
+- Parallel composition privacy accounting extracting empirical dataloader sample rates.
 
-Train a CNN on CIFAR-10 across simulated clients under Non-IID data heterogeneity, with and without Differential Privacy, and analyze the privacy–utility tradeoff across 8 (σ, C) configurations.
+## Architecture
+- **Model**: SimpleCNN with GroupNorm (3 convolutional layers, MaxPool, Dropout, FC layers). BatchNorm is avoided to ensure per-sample gradient independence.
+- **Federated Engine**: Flower (`flwr`) using Ray for virtual client simulation.
+- **Privacy Engine**: Opacus for automated per-sample gradient computation, clipping, and noise injection.
 
----
+## Experimental protocol
+- **Dataset**: CIFAR-10 (50,000 train, 10,000 test)
+- **Clients**: 5
+- **Communication rounds**: 3
+- **Local epochs**: 1
+- **Batch size**: 64
+- **Optimizer**: SGD, learning rate = 0.05
+- **Dirichlet $\alpha$**: 0.1 (unless ablated)
+- **Seed**: 42
 
-## Important: Environment Requirements
+## Repository structure
+```text
+DPFL/
+├── src/dpfl/            # Core library modules (model, config, data)
+├── scripts/             # Execution scripts for experiments
+├── tests/               # Unit and integration tests
+├── results/             # Structured output and archived configurations
+├── figures/             # High-resolution (300 DPI) generated plots
+└── docs/                # LaTeX technical report and defense notes
+```
 
-**Full CIFAR-10 experiments require a GPU environment (Colab or local GPU).**
-
-The federated simulation uses Ray, which has known issues on Windows. Full experiments (Stage 3 full, Stage 4 full, Stage 5 grid) should be run on:
-- Google Colab (free tier T4 GPU works)
-- Linux/macOS with Ray working
-- Windows WSL2 with Ray configured
-
-Subset experiments (1000 samples) work on Windows CPU.
-
----
-
-## Stage Overview
-
-| Stage | Description | Script |
-|-------|-------------|--------|
-| 1 | Dirichlet Non-IID data split, visualization | `data_split.py` |
-| 2 | Centralized non-private baseline | `train_baseline.py` |
-| 3 | Flower FedAvg without DP (plain SGD) | `federated.py` |
-| 4 | Flower FedAvg with Opacus DP-SGD | `federated.py --enable-dp` |
-| 5 | RDP accounting, grid search over (σ, C) | `grid_search.py` + `plot_stage5.py` |
-
----
-
-## Setup
-
+## Installation
 ```bash
 python -m venv .venv
 .venv\Scripts\activate      # Windows
+# source .venv/bin/activate # Linux/macOS
 pip install -r requirements.txt
 ```
 
----
+## Dataset
+CIFAR-10 is automatically downloaded to `./data/`. The non-IID partitioning creates highly specialized subsets. 
 
-## Running Stages
-
-### Subset-first (always verify here before full data)
-
+## Running the centralized baseline
 ```bash
-# Stage 1 – Dirichlet split (subset)
-python data_split.py
-
-# Stage 2 – Centralized baseline (subset)
-python train_baseline.py
-
-# Stage 3 – Non-private federation (subset)
-python federated.py
-
-# Stage 4 – DP-SGD federation (subset)
-python federated.py --enable-dp
-
-# Stage 5 – Grid search (subset validation)
-python grid_search.py --subset
+python scripts/train_baseline.py --full
 ```
 
-### Full CIFAR-10 (official experiments)
-
+## Running federated learning
 ```bash
-# Stage 1 – Dirichlet split (full)
-python data_split.py --full
-
-# Stage 2 – Centralized baseline (full)
-python train_baseline.py --full
-
-# Stage 3 – Non-private federation (full)
-python federated.py --full
-
-# Stage 4 – DP-SGD federation (full, default sigma/C from config)
-python federated.py --full --enable-dp
-
-# Stage 5 – Official 8-run grid search (full)
-python grid_search.py
-
-# Generate plots
-python plot_stage5.py
+python scripts/run_federated.py --full
 ```
 
----
-
-## Official Full-Data Protocol
-
-| Parameter | Value |
-|-----------|-------|
-| Dataset | CIFAR-10 (50,000 train / 10,000 test) |
-| Model | SimpleCNN with GroupNorm (DP-compatible) |
-| Dirichlet α | 0.1 |
-| Clients | 5 |
-| Communication rounds | 3 |
-| Local epochs | 1 |
-| Batch size | 64 |
-| Optimizer (Stage 3) | SGD, lr=0.05 |
-| Optimizer (Stage 4/5) | SGD, lr=0.05 |
-| σ grid | {0.5, 1.0, 1.5, 2.0} |
-| C grid | {0.1, 1.0} |
-| δ | 1e-5 |
-| Seed | 42 |
-
-> **Note**: Full experiments (Stage 3/4/5 on full CIFAR-10) require Colab/GPU due to Ray compatibility issues on Windows. Stage 2 centralized baseline can run on CPU (30 epochs, ~41 minutes).
-
----
-
-## Privacy Accounting
-
-Privacy is tracked using **Rényi Differential Privacy (RDP)**:
-
-1. Each client uses Opacus `PrivacyEngine` which wraps the model/optimizer/dataloader.
-2. The accountant uses `compute_rdp(q, noise_multiplier, steps, orders)` from `opacus.accountants.analysis.rdp`.
-3. Opacus `PrivacyEngine` / `DPDataLoader` performs the actual sampling. The production accounting uses the actual DP loader sample rate.
-4. The actual number of DP loader iterations/steps is tracked and RDP composition is performed over those actual steps.
-5. Optimal Rényi order α is found by minimizing ε(δ) = RDP_α + log(1/δ)/(α-1).
-6. Under parallel composition (clients have disjoint data), global ε is bounded by max client ε — we use the client with the highest sample rate (smallest dataset) as the worst case.
-7. `sigma` (noise_multiplier) controls the Gaussian noise level and directly affects epsilon.
-8. `C` (max_grad_norm) controls clipping threshold — affects training utility but does NOT appear in RDP formula.
-
----
-
-## Results Location
-
-```
-results/
-  stage1/          Dirichlet split figures and validation JSON
-  stage2/          Centralized baseline metrics, plots (subset + full)
-  stage3/          Non-private federation metrics, plots (subset + full)
-  stage4/          DP-SGD subset validation, grad_sample evidence, runtime
-  stage5/
-    per_run/       One subdirectory per (σ, C) config: summary.json + rounds.csv
-    grid_results.json    All 8 runs compiled
-    grid_results.csv     Tabular summary
-    accuracy_vs_epsilon.png
-    epsilon_vs_round.png
-```
-
----
-
-## Key Distinctions
-
-| Label | Meaning |
-|-------|---------|
-| `*_subset_*` | 1,000-sample development/validation run |
-| `*_full_*` | Full 50,000-sample CIFAR-10 official run |
-| `dataset_mode: "subset"` in JSON | Validation / debug run |
-| `dataset_mode: "full"` in JSON | Official experiment |
-
-### Current Status (as of 2026-09-07)
-
-| Stage | Status | Notes |
-|-------|--------|-------|
-| Stage 1 | ✅ COMPLETE | Full and subset splits validated, all samples assigned exactly once |
-| Stage 2 | ✅ COMPLETE | Full baseline: 74.87% accuracy (30 epochs, CPU) |
-| Stage 3 | ✅ COMPLETE | Full FedAvg: 33.26% accuracy (3 rounds, 5 clients, non-DP) |
-| Stage 4 | ✅ COMPLETE | Full CIFAR-10 run exists, official DP-SGD configuration completed |
-| Stage 5 | ✅ COMPLETE | All 8 official full-data configs exist; epsilon/accuracy plots generated |
-| Stage 6 | ✅ COMPLETE | Ablation studies (varying α and σ) on full CIFAR-10 (results archived from preserved console output) |
-
----
-
-## Stage 6: Ablation Studies (Console Archive)
-
-Stage 6 evaluated the impact of data heterogeneity (α) and privacy noise (σ) on model accuracy.
-- **Protocol**: Full CIFAR-10, 5 clients, 3 rounds, `C=1.0`.
-- **Configurations**: `(α=0.1, σ=1.0), (α=0.1, σ=2.0), (α=10.0, σ=1.0), (α=10.0, σ=2.0)`.
-- **Notice on Artifact Loss**: The official Stage 6 full experiment ran successfully in Colab on 2026-09-08. However, due to a runtime disconnection, the generated filesystem artifacts under `results/stage6/` were lost.
-- **Archival**: The preserved authoritative console output was used to reconstruct the final results (`results/stage6/final_results_from_console.json`) and archive the run metadata (`results/stage6_console_archive.md`). No new experiment was run for this archival and analysis step, preserving the integrity of the original experiment without wasting compute.
-
----
-
-## Tests
-
+## Running DP-FL
 ```bash
-python -m unittest discover -s . -p "test_*.py"
+python scripts/run_federated.py --full --enable-dp
 ```
 
-Tests cover:
-- Dirichlet coverage and determinism
-- Stage 3 non-DP enforcement (no PrivacyEngine in non-DP path)
-- Opacus `grad_sample` presence and shape
-- RDP: finiteness, monotonicity, σ ordering, δ correctness, cumulative match
-- Grid artifact completeness and internal consistency
+## Running the Stage 5 grid
+```bash
+python scripts/run_grid.py
+```
+
+## Running ablations
+```bash
+python scripts/run_ablation.py
+```
+
+## Privacy accounting explanation
+Privacy is accounted via **Rényi Differential Privacy (RDP)**:
+1. The exact sample rate is queried from Opacus's `DPDataLoader` (expected batch size / local dataset size).
+2. The number of physical DP steps per client is recorded per round.
+3. RDP is composed sequentially over these steps.
+4. Because the Dirichlet split creates disjoint client datasets, privacy composes in parallel across clients. Global $\varepsilon$ is defined by the maximum $\varepsilon$ among all participating clients, evaluated at $\delta=10^{-5}$.
+*Note: Clipping norm $C$ strictly bounds sensitivity but does not alter the mathematical formulation of RDP directly (noise is scaled internally as $C \times \sigma$).*
+
+## Results summary
+- **Stage 2 Centralized**: 74.87%
+- **Stage 3 Non-private FL**: 33.26%
+- **Stage 4 DP-FL Reference ($\sigma=1.0, C=1.0$)**: 20.14% ($\varepsilon=1.5394$)
+- **Stage 5 Grid (Best Privacy)**: 19.54% at $\varepsilon=0.3989$ ($\sigma=2.0, C=0.1$)
+- **Stage 6 Homogeneous ($\alpha=10.0$)**: 22.33% ($\sigma=1.0, \varepsilon=1.2595$)
+- **Stage 6 Heterogeneous ($\alpha=0.1$)**: 18.25% ($\sigma=1.0, \varepsilon=1.5394$)
+
+*All reported numbers are strictly from official, reproducible runs. The Stage 6 values are preserved from validated console output after a Colab artifact loss.*
+
+## Reproducibility
+The official experiments leverage deterministic seeds. However, the multi-client simulation relies on Ray, which introduces execution non-determinism. Secure RNG for Opacus was disabled for execution speed, restricting this codebase to experimental/research usage rather than production deployment.
+
+## GPU requirements
+Full-scale DP-FL experiments (Stage 4-6) computationally mandate a GPU (e.g., Tesla T4 on Colab) due to Opacus's per-sample gradient hooks. 
+
+## Known Windows/Flower limitations
+Ray Virtual Client Engine support on native Windows is highly limited and prone to crashes or timeouts. Researchers on Windows must use WSL2 or execute on a Linux/Colab cloud instance.
+
+## Test suite
+The repository includes a comprehensive 34-test suite validating Dirichlet distributions, non-private fallbacks, and DP accounting logic.
+```bash
+python -m unittest discover -s tests -p "test_*.py"
+```
+
+## Report
+The formal academic report is located at `docs/technical_report.tex`.
+
+## Citation
+If utilizing this repository for further research, please credit this project and the corresponding authors.

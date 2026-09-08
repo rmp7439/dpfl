@@ -1,0 +1,8 @@
+finalize DP-FL research repository and technical report
+
+- Restructured repository into src/dpfl/, scripts/, tests/, figures/, results/, archive/
+- Transpiled DPFL Technical Report to LaTeX (docs/technical_report.tex)
+- Updated README.md and FINAL_PROJECT_AUDIT.md to reflect structure
+- Fixed imports across tests and scripts and verified all 34 tests pass
+- Regenerated plots at 300 DPI
+- Safely archived legacy validation and scripts
