@@ -128,6 +128,7 @@ def main():
     fig.tight_layout()
     out1 = os.path.join(out_dir, "accuracy_vs_epsilon.png")
     fig.savefig(out1, dpi=300)
+    fig.savefig(out1.replace('.png', '.pdf'))
     print(f"Saved: {out1}")
     plt.close(fig)
 
@@ -153,6 +154,7 @@ def main():
     fig2.tight_layout()
     out2 = os.path.join(out_dir, "epsilon_vs_round.png")
     fig2.savefig(out2, dpi=300)
+    fig2.savefig(out2.replace('.png', '.pdf'))
     print(f"Saved: {out2}")
     plt.close(fig2)
 

@@ -10,7 +10,7 @@ import os
 import matplotlib.pyplot as plt
 
 def main():
-    stage6_file = "results/stage6/final_results_from_console.json"
+    stage6_file = "results/stage6/ablation_results.json"
     with open(stage6_file, "r") as f:
         s6_data = json.load(f)
         
@@ -35,7 +35,8 @@ def main():
     plt.ylabel("Test Accuracy (%)")
     plt.grid(True)
     plt.legend()
-    plt.savefig("results/stage6/accuracy_vs_epsilon.png", dpi=300)
+    plt.savefig('figures/accuracy_vs_epsilon.png', dpi=300)
+    plt.savefig('figures/accuracy_vs_epsilon.pdf', dpi=300)
     plt.close()
     
     # Plot 2: Convergence (Stage 6)
@@ -56,7 +57,8 @@ def main():
     plt.xticks([1,2,3])
     plt.grid(True)
     plt.legend()
-    plt.savefig("results/stage6/convergence.png", dpi=300)
+    plt.savefig('figures/convergence.png', dpi=300)
+    plt.savefig('figures/convergence.pdf', dpi=300)
     plt.close()
     
     # Plot 3: Stage 5 + Stage 6
@@ -78,7 +80,8 @@ def main():
         by_label = dict(zip(labels, handles))
         plt.legend(by_label.values(), by_label.keys())
         
-        plt.savefig("results/stage6/combined_stage5_stage6.png", dpi=300)
+        plt.savefig('figures/combined_stage5_stage6.png', dpi=300)
+        plt.savefig('figures/combined_stage5_stage6.pdf', dpi=300)
         plt.close()
 
 if __name__ == "__main__":
