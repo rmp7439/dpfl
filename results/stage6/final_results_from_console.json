@@ -1,0 +1,62 @@
+[
+  {
+    "alpha": 0.1,
+    "sigma": 1.0,
+    "C": 1.0,
+    "final_test_accuracy": 18.25,
+    "epsilon": 1.5394,
+    "best_alpha": 8.2,
+    "runtime_seconds": 389.50,
+    "round_accuracy": [11.08, 15.22, 18.25],
+    "source": "Pasted markdown(7).md",
+    "source_type": "completed_colab_console_output",
+    "experiment_date": "2026-09-08",
+    "reconstructed_from_console": true,
+    "new_experiment_run": false
+  },
+  {
+    "alpha": 0.1,
+    "sigma": 2.0,
+    "C": 1.0,
+    "final_test_accuracy": 11.87,
+    "epsilon": 0.3989,
+    "best_alpha": 34.0,
+    "runtime_seconds": 385.03,
+    "round_accuracy": [10.22, 11.08, 11.87],
+    "source": "Pasted markdown(7).md",
+    "source_type": "completed_colab_console_output",
+    "experiment_date": "2026-09-08",
+    "reconstructed_from_console": true,
+    "new_experiment_run": false
+  },
+  {
+    "alpha": 10.0,
+    "sigma": 1.0,
+    "C": 1.0,
+    "final_test_accuracy": 22.33,
+    "epsilon": 1.2595,
+    "best_alpha": 9.2,
+    "runtime_seconds": 389.75,
+    "round_accuracy": [14.23, 22.0, 22.33],
+    "source": "Pasted markdown(7).md",
+    "source_type": "completed_colab_console_output",
+    "experiment_date": "2026-09-08",
+    "reconstructed_from_console": true,
+    "new_experiment_run": false
+  },
+  {
+    "alpha": 10.0,
+    "sigma": 2.0,
+    "C": 1.0,
+    "final_test_accuracy": 10.10,
+    "epsilon": 0.3133,
+    "best_alpha": 38.0,
+    "runtime_seconds": 385.49,
+    "round_accuracy": [11.45, 10.03, 10.10],
+    "source": "Pasted markdown(7).md",
+    "source_type": "completed_colab_console_output",
+    "experiment_date": "2026-09-08",
+    "reconstructed_from_console": true,
+    "new_experiment_run": false
+  }
+]

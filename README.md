@@ -167,7 +167,17 @@ results/
 | Stage 3 | ✅ COMPLETE | Full FedAvg: 33.26% accuracy (3 rounds, 5 clients, non-DP) |
 | Stage 4 | ✅ COMPLETE | Full CIFAR-10 run exists, official DP-SGD configuration completed |
 | Stage 5 | ✅ COMPLETE | All 8 official full-data configs exist; epsilon/accuracy plots generated |
-| Stage 6 | ⏳ PENDING | Ablation studies (varying α and σ) on full CIFAR-10 |
+| Stage 6 | ✅ COMPLETE | Ablation studies (varying α and σ) on full CIFAR-10 (results archived from preserved console output) |
+
+---
+
+## Stage 6: Ablation Studies (Console Archive)
+
+Stage 6 evaluated the impact of data heterogeneity (α) and privacy noise (σ) on model accuracy.
+- **Protocol**: Full CIFAR-10, 5 clients, 3 rounds, `C=1.0`.
+- **Configurations**: `(α=0.1, σ=1.0), (α=0.1, σ=2.0), (α=10.0, σ=1.0), (α=10.0, σ=2.0)`.
+- **Notice on Artifact Loss**: The official Stage 6 full experiment ran successfully in Colab on 2026-09-08. However, due to a runtime disconnection, the generated filesystem artifacts under `results/stage6/` were lost.
+- **Archival**: The preserved authoritative console output was used to reconstruct the final results (`results/stage6/final_results_from_console.json`) and archive the run metadata (`results/stage6_console_archive.md`). No new experiment was run for this archival and analysis step, preserving the integrity of the original experiment without wasting compute.
 
 ---
 
