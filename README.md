@@ -122,8 +122,8 @@ Privacy is tracked using **Rényi Differential Privacy (RDP)**:
 
 1. Each client uses Opacus `PrivacyEngine` which wraps the model/optimizer/dataloader.
 2. The accountant uses `compute_rdp(q, noise_multiplier, steps, orders)` from `opacus.accountants.analysis.rdp`.
-3. **Sampling rate `q = batch_size / dataset_size`** — Opacus uses Poisson sampling where each sample is included independently with probability `q`.
-4. Steps compose additively under RDP: after R rounds × T steps/round = R×T total steps.
+3. Opacus `PrivacyEngine` / `DPDataLoader` performs the actual sampling. The production accounting uses the actual DP loader sample rate.
+4. The actual number of DP loader iterations/steps is tracked and RDP composition is performed over those actual steps.
 5. Optimal Rényi order α is found by minimizing ε(δ) = RDP_α + log(1/δ)/(α-1).
 6. Under parallel composition (clients have disjoint data), global ε is bounded by max client ε — we use the client with the highest sample rate (smallest dataset) as the worst case.
 7. `sigma` (noise_multiplier) controls the Gaussian noise level and directly affects epsilon.
@@ -165,17 +165,9 @@ results/
 | Stage 1 | ✅ COMPLETE | Full and subset splits validated, all samples assigned exactly once |
 | Stage 2 | ✅ COMPLETE | Full baseline: 74.87% accuracy (30 epochs, CPU) |
 | Stage 3 | ✅ COMPLETE | Full FedAvg: 33.26% accuracy (3 rounds, 5 clients, non-DP) |
-| Stage 4 | ⚠️ PARTIAL | Subset validation passed, full run requires Colab |
-| Stage 5 | ⚠️ PARTIAL | 0/8 full configs complete, all 8 need Colab |
-
-**To complete Stage 5 on Colab:**
-```bash
-# On Colab (GPU runtime):
-!pip install -r requirements.txt
-!pip uninstall -y triton  # Fix for Ray crash on Colab
-!python grid_search.py  # Runs all 8 configs on full CIFAR-10
-!python plot_stage5.py  # Generate final plots
-```
+| Stage 4 | ✅ COMPLETE | Full CIFAR-10 run exists, official DP-SGD configuration completed |
+| Stage 5 | ✅ COMPLETE | All 8 official full-data configs exist; epsilon/accuracy plots generated |
+| Stage 6 | ⏳ PENDING | Ablation studies (varying α and σ) on full CIFAR-10 |
 
 ---
 

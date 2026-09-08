@@ -194,6 +194,7 @@ def main():
     parser.add_argument("--enable-dp", action="store_true", help="Enable Opacus DP-SGD (Stage 4/5)")
     parser.add_argument("--sigma", type=float, help="Noise multiplier (sigma) for DP-SGD")
     parser.add_argument("--C", type=float, help="Max grad norm (C) for DP-SGD")
+    parser.add_argument("--alpha", type=float, help="Dirichlet alpha for non-IID split (default: 0.1)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--output-dir", type=str, default="results/stage4", help="Output directory for results")
     args = parser.parse_args()
@@ -213,6 +214,12 @@ def main():
         
     num_samples = CONFIG.get("num_samples", 1000)
     num_clients = CONFIG.get("num_clients", 3)
+    
+    if args.alpha is not None:
+        if args.alpha <= 0:
+            raise ValueError("alpha must be > 0")
+        CONFIG["alpha"] = args.alpha
+        
     alpha = CONFIG.get("alpha", 0.1)
     
     mode = "full" if args.full else "subset"
@@ -418,10 +425,12 @@ def main():
             "batch_size": CONFIG.get("batch_size", 32),
             "local_epochs": CONFIG.get("local_epochs", 1),
             "optimizer": CONFIG.get("fed_optimizer", "SGD"),
+            "learning_rate": CONFIG.get("dp_lr", 0.01),
             "model": "SimpleCNN",
             "device": str(device),
             "GPU": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None",
             "number_of_communication_rounds": num_rounds,
+            "seed": args.seed,
             "per_round_test_accuracy": acc_history,
             "final_test_accuracy": final_acc,
             "best_test_accuracy": max(acc_history) if acc_history else 0.0,

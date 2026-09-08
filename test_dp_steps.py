@@ -25,13 +25,17 @@ def run_test(dataset_size, batch_size):
     for _ in dp_loader:
         steps += 1
         
-    expected_steps = math.ceil(dataset_size / batch_size)
     print(f"Dataset: {dataset_size}, Batch: {batch_size}")
     print(f"  len(loader) = {len(loader)}")
     print(f"  len(dp_loader) = {len(dp_loader)}")
     print(f"  Actual steps taken = {steps}")
-    print(f"  Expected steps = {expected_steps}")
+    print(f"  Sample rate = {dp_loader.sample_rate}")
+    
+    assert steps == len(dp_loader), f"Iterated steps {steps} does not match len(dp_loader) {len(dp_loader)}"
+    assert hasattr(dp_loader, "sample_rate"), "dp_loader missing sample_rate"
 
 run_test(100, 32)
 run_test(333, 32)
 run_test(500, 32)
+print("test_dp_steps.py passed.")
+

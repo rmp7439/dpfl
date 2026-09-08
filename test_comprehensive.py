@@ -341,7 +341,7 @@ class TestGridArtifacts(unittest.TestCase):
                     rows = list(csv.DictReader(f))
                 if not rows:
                     continue
-                epsilons = [float(r["epsilon"]) for r in rows]
+                epsilons = [float(r["global_epsilon"]) for r in rows]
                 for i in range(1, len(epsilons)):
                     self.assertGreaterEqual(epsilons[i], epsilons[i-1],
                         f"Epsilon decreased at round {i+1} for sigma={s}, C={c}")
@@ -391,10 +391,32 @@ class TestGridArtifacts(unittest.TestCase):
                 msg=f"sigma mismatch in grid vs per-run for sigma={s}, C={c}")
             self.assertAlmostEqual(r["C"], summary["C"], places=4,
                 msg=f"C mismatch in grid vs per-run for sigma={s}, C={c}")
-            # dataset_mode must match
             self.assertEqual(r.get("dataset_mode"), summary.get("dataset_mode"),
                 msg=f"dataset_mode mismatch in grid vs per-run for sigma={s}, C={c}: "
                     f"grid says {r.get('dataset_mode')}, per-run says {summary.get('dataset_mode')}")
+
+    def test_official_stage5_protocol(self):
+        """Validate every official Stage 5 grid row corresponds to the official full-data protocol."""
+        if not os.path.exists(self.GRID_JSON):
+            self.skipTest("grid_results.json not found")
+        results = self._load_grid()
+        self.assertEqual(len(results), 8, "Expected exactly 8 official grid runs")
+        
+        for r in results:
+            self.assertEqual(r.get("dataset_mode"), "full")
+            self.assertEqual(r.get("number_of_training_samples"), 50000)
+            self.assertEqual(r.get("number_of_test_samples"), 10000)
+            self.assertEqual(r.get("number_of_clients"), 5)
+            self.assertEqual(r.get("alpha"), 0.1)
+            self.assertEqual(r.get("batch_size"), 64)
+            self.assertEqual(r.get("local_epochs"), 1)
+            self.assertEqual(r.get("optimizer"), "SGD")
+            if "learning_rate" in r:
+                self.assertEqual(r.get("learning_rate"), 0.05)
+            self.assertEqual(r.get("number_of_communication_rounds"), 3)
+            self.assertEqual(r.get("delta"), 1e-5)
+            self.assertEqual(r.get("run_status"), "Success")
+
 
 
 if __name__ == "__main__":
