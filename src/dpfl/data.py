@@ -85,7 +85,7 @@ def plot_class_distribution(client_indices, labels, num_classes, filename):
     
     return client_class_counts
 
-def validate_and_save_json(client_indices, labels, num_classes, client_class_counts, alpha, num_samples, is_full):
+def validate_and_save_json(client_indices, labels, num_classes, client_class_counts, alpha, num_samples, is_full, json_path):
     # Check coverage and duplication
     all_assigned_indices = []
     for indices in client_indices.values():
@@ -117,11 +117,10 @@ def validate_and_save_json(client_indices, labels, num_classes, client_class_cou
         "heterogeneity_metric_mean_std": heterogeneity_score
     }
     
-    json_filename = f"stage1_validation_{'full' if is_full else 'subset'}.json"
-    with open(json_filename, "w") as f:
+    with open(json_path, "w") as f:
         json.dump(validation_data, f, indent=4)
         
-    print(f"Saved validation data to {json_filename}")
+    print(f"Saved validation data to {json_path}")
     assert exactly_once, "Data split failed: missing or duplicated samples!"
 
 def main():
@@ -132,28 +131,28 @@ def main():
     np.random.seed(42)
     torch.manual_seed(42)
     
-    if args.full:
-        from config import FULL_CONFIG as active_config
-    else:
-        from config import SUBSET_CONFIG as active_config
-
-    num_samples = active_config.get("num_samples", 1000)
-    num_clients = active_config.get("num_clients", 3)
+    from dpfl.config import FULL_CONFIG, SUBSET_CONFIG
+    active_config = FULL_CONFIG if args.full else SUBSET_CONFIG
+    
+    num_clients = active_config.get("number_of_clients", 5)
     alpha = active_config.get("alpha", 0.1)
     
     if args.full:
         print(f"Running Dirichlet split on FULL CIFAR-10, clients: {num_clients}, alpha: {alpha}")
         dataset = get_cifar10(subset_size=None)
-        filename = "full_dirichlet_split.png"
+        json_path = os.path.join("results", "stage1", "split_validation_full.json")
+        filename = os.path.join("results", "stage1", "client_class_distribution_full.png")
     else:
-        print(f"Running Dirichlet split on subset ({num_samples} samples), clients: {num_clients}, alpha: {alpha}")
-        dataset = get_cifar10(subset_size=num_samples)
-        filename = "subset_dirichlet_split.png"
+        dataset = get_cifar10(subset_size=SUBSET_CONFIG["number_of_training_samples"])
+        alpha = SUBSET_CONFIG["alpha"]
+        num_clients = SUBSET_CONFIG["number_of_clients"]
+        json_path = os.path.join("results", "stage1", "split_validation_subset.json")
+        filename = os.path.join("results", "stage1", "client_class_distribution_subset.png")
 
     client_indices, labels = dirichlet_split(dataset, num_clients, alpha)
     client_class_counts = plot_class_distribution(client_indices, labels, 10, filename)
     
-    validate_and_save_json(client_indices, labels, 10, client_class_counts, alpha, num_samples, args.full)
+    validate_and_save_json(client_indices, labels, 10, client_class_counts, alpha, len(labels), args.full, json_path)
     
 if __name__ == "__main__":
     main()

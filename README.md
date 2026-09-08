@@ -67,7 +67,7 @@ python scripts/run_federated.py --full --enable-dp
 
 ## Running the Stage 5 grid
 ```bash
-python scripts/run_grid.py
+python scripts/run_privacy_grid.py
 ```
 
 ## Running ablations

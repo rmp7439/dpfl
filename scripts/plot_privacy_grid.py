@@ -49,7 +49,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     if not os.path.exists(base_dir):
-        print(f"Error: {base_dir} not found. Run grid_search.py first.")
+        print(f"Error: {base_dir} not found. Run run_privacy_grid.py first.")
         return
 
     run_dirs = sorted(glob.glob(os.path.join(base_dir, "*")))

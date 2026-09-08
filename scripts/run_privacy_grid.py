@@ -61,7 +61,7 @@ def main():
             os.makedirs(output_dir, exist_ok=True)
 
             cmd = [
-                sys.executable, "federated.py",
+                sys.executable, os.path.join(os.path.dirname(__file__), "run_federated.py"),
                 "--enable-dp",
                 "--sigma", str(s),
                 "--C", str(c),

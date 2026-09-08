@@ -9,7 +9,7 @@ src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
 class TestGridArtifacts(unittest.TestCase):
-    GRID_JSON = os.path.join(project_root, "results", "dp_grid", "grid_results.json")
+    GRID_JSON = os.path.join(project_root, "results", "stage5", "grid_results.json")
     SIGMAS = [0.5, 1.0, 1.5, 2.0]
     CS = [0.1, 1.0]
 
@@ -57,7 +57,7 @@ class TestGridArtifacts(unittest.TestCase):
                     self.assertGreaterEqual(eps_map[(s_low, c)], eps_map[(s_high, c)], f"sigma={s_high} should have <= epsilon vs sigma={s_low}, C={c}")
 
     def test_per_run_artifacts_exist(self):
-        base = os.path.join(project_root, "results", "dp_grid", "per_run")
+        base = os.path.join(project_root, "results", "stage5", "per_run")
         if not os.path.exists(base):
             self.skipTest("per_run directory not found")
         for s in self.SIGMAS:
@@ -70,7 +70,7 @@ class TestGridArtifacts(unittest.TestCase):
 
     def test_grid_results_internally_consistent(self):
         results = self._load_grid()
-        base = os.path.join(project_root, "results", "dp_grid", "per_run")
+        base = os.path.join(project_root, "results", "stage5", "per_run")
         for r in results:
             s, c = r["sigma"], r["C"]
             summary_path = os.path.join(base, f"sigma_{s}_C_{c}", "summary.json")
@@ -104,7 +104,7 @@ class TestGridArtifacts(unittest.TestCase):
 
 class TestStage6Archive(unittest.TestCase):
     def test_stage6_archive_exists_and_valid(self):
-        json_path = os.path.join(project_root, "results", "ablations", "ablation_results.json")
+        json_path = os.path.join(project_root, "results", "stage6", "ablation_results.json")
         self.assertTrue(os.path.exists(json_path), "Archived JSON results should exist")
         with open(json_path, "r") as f:
             data = json.load(f)

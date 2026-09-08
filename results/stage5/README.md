@@ -22,12 +22,12 @@ We sweep over two parameters:
 ### Reproducing the Grid Search
 To execute the full grid search on CIFAR-10, run from the project root:
 ```bash
-python grid_search.py --full
+python scripts/run_privacy_grid.py --full
 ```
 
 To quickly validate the pipeline on a 1,000-sample subset:
 ```bash
-python grid_search.py --subset
+python scripts/run_privacy_grid.py --subset
 ```
 
 To plot the resulting accuracy vs. cumulative $\epsilon$ curves:

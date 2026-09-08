@@ -6,13 +6,9 @@ if project_root not in sys.path: sys.path.insert(0, project_root)
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 """
-Comprehensive test suite for the DP-FL repository.
+Test suite for DP-FL data operations.
 Tests cover:
   - Dirichlet partition correctness
-  - Stage 3 non-DP enforcement
-  - Opacus grad_sample existence and shape
-  - RDP accounting: finiteness, monotonicity, sigma ordering, delta, cumulative match
-  - Grid artifact completeness
 """
 
 import unittest
