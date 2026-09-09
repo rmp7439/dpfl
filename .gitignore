@@ -9,3 +9,7 @@ wandb/
 
 .pytest_cache/
 .venv/
+*.pyc
+.env
+.env.*
+*.log
