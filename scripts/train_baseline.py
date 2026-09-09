@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import datetime
 import time
 
-from dpfl.config import SUBSET_CONFIG, FULL_CONFIG
-from dpfl.model import SimpleCNN
+from config import SUBSET_CONFIG, FULL_CONFIG
+from model import SimpleCNN
 
 def get_data(subset_size=None):
     transform_train = transforms.Compose([

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import os
 import argparse
 import json
-from dpfl.config import CONFIG
+from config import CONFIG
 
 def get_cifar10(subset_size=None):
     transform = transforms.Compose([transforms.ToTensor()])
@@ -131,7 +131,7 @@ def main():
     np.random.seed(42)
     torch.manual_seed(42)
     
-    from dpfl.config import FULL_CONFIG, SUBSET_CONFIG
+    from config import FULL_CONFIG, SUBSET_CONFIG
     active_config = FULL_CONFIG if args.full else SUBSET_CONFIG
     
     num_clients = active_config.get("number_of_clients", 5)

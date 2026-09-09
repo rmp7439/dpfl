@@ -10,8 +10,8 @@ if project_root not in sys.path: sys.path.insert(0, project_root)
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
 
-from dpfl.model import SimpleCNN
-from dpfl.config import CONFIG
+from model import SimpleCNN
+from config import CONFIG
 from scripts.run_federated import FlowerClient
 import scripts.run_federated as federated
 

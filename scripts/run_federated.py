@@ -21,11 +21,11 @@ import time
 import math
 from typing import Dict, List, Tuple
 
-from dpfl.config import SUBSET_CONFIG, FULL_CONFIG
+from config import SUBSET_CONFIG, FULL_CONFIG
 CONFIG = SUBSET_CONFIG
-from dpfl.model import SimpleCNN
+from model import SimpleCNN
 from scripts.train_baseline import get_data, train, test
-from dpfl.data import dirichlet_split
+from data import dirichlet_split
 from opacus.accountants.analysis.rdp import compute_rdp, get_privacy_spent
 
 # Global data placeholders for simulation

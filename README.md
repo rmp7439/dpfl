@@ -31,7 +31,7 @@ How severely does the strict bound of Differential Privacy degrade the classific
 ## Repository structure
 ```text
 DPFL/
-├── src/dpfl/            # Core library modules (model, config, data)
+├── src/                 # Core library modules (model, config, data)
 ├── scripts/             # Execution scripts for experiments
 ├── tests/               # Unit and integration tests
 ├── results/             # Structured output and archived configurations

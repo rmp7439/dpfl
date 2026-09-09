@@ -20,7 +20,7 @@ import torch.nn as nn
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
 
-from dpfl.model import SimpleCNN
+from model import SimpleCNN
 
 
 # =========================================================
@@ -38,7 +38,7 @@ class TestDirichletSplit(unittest.TestCase):
 
     def test_all_samples_assigned_exactly_once(self):
         """Every index appears in exactly one client — no missing, no duplicate."""
-        from dpfl.data import dirichlet_split
+        from data import dirichlet_split
         import numpy as np
 
         n = 500
@@ -68,7 +68,7 @@ class TestDirichletSplit(unittest.TestCase):
 
     def test_deterministic_with_same_seed(self):
         """Same seed → same partition."""
-        from dpfl.data import dirichlet_split
+        from data import dirichlet_split
 
         class FakeDataset:
             def __init__(self):
@@ -86,7 +86,7 @@ class TestDirichletSplit(unittest.TestCase):
 
     def test_heterogeneous_distribution(self):
         """alpha=0.1 should create more heterogeneous distribution than alpha=10."""
-        from dpfl.data import dirichlet_split
+        from data import dirichlet_split
 
         class FakeDataset:
             def __init__(self):
