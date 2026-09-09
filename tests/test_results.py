@@ -29,7 +29,7 @@ class TestGridArtifacts(unittest.TestCase):
             self.assertEqual(r.get("run_status"), "Success", f"Run failed for sigma={r.get('sigma')}, C={r.get('C')}")
 
     def test_epsilon_non_decreasing_within_run(self):
-        base = os.path.join(project_root, "results", "dp_grid", "per_run")
+        base = os.path.join(project_root, "results", "stage5", "per_run")
         if not os.path.exists(base):
             self.skipTest("per_run directory not found")
         for s in self.SIGMAS:

@@ -10,8 +10,8 @@ Stage 5 Grid Search: runs 8 configurations of (sigma, C) with DP-SGD Flower fede
 on the full CIFAR-10 dataset and compiles results into a unified artifact.
 
 Usage:
-    python grid_search.py            # full CIFAR-10 run
-    python grid_search.py --subset   # 1k-sample subset (for validation only)
+    python run_privacy_grid.py            # full CIFAR-10 run
+    python run_privacy_grid.py --subset   # 1k-sample subset (for validation only)
 """
 import os
 import sys
