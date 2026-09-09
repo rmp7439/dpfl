@@ -31,12 +31,19 @@ How severely does the strict bound of Differential Privacy degrade the classific
 ## Repository structure
 ```text
 DPFL/
-├── src/                 # Core library modules (model, config, data)
-├── scripts/             # Execution scripts for experiments
-├── tests/               # Unit and integration tests
-├── results/             # Structured output and archived configurations
-├── figures/             # High-resolution (300 DPI) generated plots
-└── docs/                # LaTeX technical report and defense notes
+├── archive/             # Archived development and validation material
+├── data/                # Dataset storage
+├── figures/             # Generated research figures
+├── results/             # Structured experimental results and evidence
+├── scripts/             # Experiment and plotting scripts
+├── src/                 # Core project modules
+├── tests/               # Automated tests
+│
+├── .gitignore
+├── AGENTS.md
+├── README.md
+├── requirements.txt
+└── technical_report.tex
 ```
 
 ## Installation
@@ -77,24 +84,26 @@ python scripts/run_ablation.py
 
 ## Privacy accounting explanation
 Privacy is accounted via **Rényi Differential Privacy (RDP)**:
-1. The exact sample rate is queried from Opacus's `DPDataLoader` (expected batch size / local dataset size).
-2. The number of physical DP steps per client is recorded per round.
-3. RDP is composed sequentially over these steps.
-4. Because the Dirichlet split creates disjoint client datasets, privacy composes in parallel across clients. Global $\varepsilon$ is defined by the maximum $\varepsilon$ among all participating clients, evaluated at $\delta=10^{-5}$.
-*Note: Clipping norm $C$ strictly bounds sensitivity but does not alter the mathematical formulation of RDP directly (noise is scaled internally as $C \times \sigma$).*
+1. The sampling rate used for accounting is derived from the DPDataLoader expected batch size and local dataset size.
+2. The number of physical DP steps performed by each client is recorded for each communication round.
+3. RDP is composed sequentially across the DP steps performed by each client.
+4. Because the Dirichlet partition creates disjoint client datasets, privacy composes in parallel across clients.
+5. The global privacy guarantee is defined by the maximum client-level $\varepsilon$, evaluated at $\delta = 1e-5$.
+
+*Note: Clipping norm $C$ strictly bounds per-sample gradient sensitivity, and Opacus scales injected Gaussian noise according to $C$ and $\sigma$.*
 
 ## Results summary
 - **Stage 2 Centralized**: 74.87%
 - **Stage 3 Non-private FL**: 33.26%
-- **Stage 4 DP-FL Reference ($\sigma=1.0, C=1.0$)**: 20.14% ($\varepsilon=1.5394$)
-- **Stage 5 Grid (Best Privacy)**: 19.54% at $\varepsilon=0.3989$ ($\sigma=2.0, C=0.1$)
-- **Stage 6 Homogeneous ($\alpha=10.0$)**: 22.33% ($\sigma=1.0, \varepsilon=1.2595$)
-- **Stage 6 Heterogeneous ($\alpha=0.1$)**: 18.25% ($\sigma=1.0, \varepsilon=1.5394$)
+- **Stage 4 DP-FL Reference ($\sigma=1.0, C=1.0$)**: 20.14%, $\varepsilon=1.5394$
+- **Stage 5 Grid (Strongest Privacy)**: 19.54%, $\varepsilon=0.3989$ ($\sigma=2.0, C=0.1$)
+- **Stage 6 Homogeneous ($\alpha=10.0, \sigma=1.0$)**: 22.33%, $\varepsilon=1.2595$
+- **Stage 6 Heterogeneous ($\alpha=0.1, \sigma=1.0$)**: 18.25%, $\varepsilon=1.5394$
 
-*All reported numbers are strictly from official, reproducible runs. The Stage 6 values are preserved from validated console output after a Colab artifact loss.*
+*All reported values are from the project's official experimental runs. The Stage 6 results were preserved from validated Colab console output following loss of the corresponding runtime artifacts.*
 
 ## Reproducibility
-The official experiments leverage deterministic seeds. However, the multi-client simulation relies on Ray, which introduces execution non-determinism. Secure RNG for Opacus was disabled for execution speed, restricting this codebase to experimental/research usage rather than production deployment.
+The official experiments leverage deterministic seeds (seed=42). However, Ray-based multi-client simulation can introduce execution-level non-determinism. Opacus Secure RNG was disabled for execution speed, therefore the implementation is intended for experimental/research use rather than production privacy deployment.
 
 ## GPU requirements
 Full-scale DP-FL experiments (Stage 4-6) computationally mandate a GPU (e.g., Tesla T4 on Colab) due to Opacus's per-sample gradient hooks. 
@@ -103,7 +112,13 @@ Full-scale DP-FL experiments (Stage 4-6) computationally mandate a GPU (e.g., Te
 Ray Virtual Client Engine support on native Windows is highly limited and prone to crashes or timeouts. Researchers on Windows must use WSL2 or execute on a Linux/Colab cloud instance.
 
 ## Test suite
-The repository includes a comprehensive 34-test suite validating Dirichlet distributions, non-private fallbacks, and DP accounting logic.
+The repository includes a focused automated test suite validating:
+- Dirichlet data partitioning
+- federated training behavior
+- privacy mechanisms
+- RDP accounting
+- experimental result validation
+
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
 ```
