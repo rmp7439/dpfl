@@ -109,7 +109,7 @@ python -m unittest discover -s tests -p "test_*.py"
 ```
 
 ## Report
-The formal academic report is located at `docs/technical_report.tex`.
+The formal academic report is located at `technical_report.tex`.
 
 ## Citation
 If utilizing this repository for further research, please credit this project and the corresponding authors.
