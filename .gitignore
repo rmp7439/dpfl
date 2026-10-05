@@ -13,3 +13,5 @@ wandb/
 .env
 .env.*
 *.log
+
+a.txt
