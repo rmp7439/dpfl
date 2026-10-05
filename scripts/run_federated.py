@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import flwr as fl
+from typing import Dict, List, Tuple, Optional, Union
 import argparse
 import numpy as np
 import json
@@ -42,6 +43,7 @@ class FlowerClient(fl.client.NumPyClient):
         self.test_loader = test_loader
         self.device = device
         self.use_dp = use_dp
+        self.setup_time = 0.0
         
     def get_parameters(self, config):
         return [val.cpu().numpy() for _, val in self.net.state_dict().items()]
@@ -52,10 +54,13 @@ class FlowerClient(fl.client.NumPyClient):
         self.net.load_state_dict(state_dict, strict=True)
         
     def fit(self, parameters, config):
+        import time
+        start_fit = time.time()
         self.set_parameters(parameters)
         local_epochs = CONFIG.get("local_epochs", 1)
         
         if self.use_dp:
+            dp_setup_start = time.time()
             lr = CONFIG.get("dp_lr", 0.01)
             opt_name = CONFIG.get("fed_optimizer", "SGD")
             if opt_name == "SGD":
@@ -76,6 +81,7 @@ class FlowerClient(fl.client.NumPyClient):
                 noise_multiplier=CONFIG.get("noise_multiplier", 1.0),
                 max_grad_norm=CONFIG.get("max_grad_norm", 1.0),
             )
+            dp_setup_time = time.time() - dp_setup_start
             
             actual_sample_rate = getattr(train_loader, "sample_rate", -1.0)
             actual_steps = len(train_loader)
@@ -97,8 +103,10 @@ class FlowerClient(fl.client.NumPyClient):
                         grad_shapes[name] = list(param.grad_sample.shape)
                 optimizer.zero_grad()
             
+            train_start = time.time()
             for epoch in range(1, local_epochs + 1):
                 train(self.net, self.device, train_loader, optimizer, epoch)
+            train_time = time.time() - train_start
                 
             epsilon = privacy_engine.accountant.get_epsilon(delta=1e-5)
             print(f"[Client {self.cid}] Opacus Accountant Epsilon: {epsilon:.4f}")
@@ -121,7 +129,11 @@ class FlowerClient(fl.client.NumPyClient):
                 "sample_rate": float(actual_sample_rate),
                 "dp_steps": int(actual_steps * local_epochs),
                 "sigma": float(CONFIG.get("noise_multiplier", 1.0)),
-                "C": float(CONFIG.get("max_grad_norm", 1.0))
+                "C": float(CONFIG.get("max_grad_norm", 1.0)),
+                "setup_time": self.setup_time,
+                "dp_setup_time": dp_setup_time,
+                "train_time": train_time,
+                "fit_total_time": time.time() - start_fit
             }
             self.net = self.net._module
         else:
@@ -132,20 +144,33 @@ class FlowerClient(fl.client.NumPyClient):
             else:
                 optimizer = optim.Adam(self.net.parameters(), lr=lr)
                 
+            train_start = time.time()
             for epoch in range(1, local_epochs + 1):
                 train(self.net, self.device, self.train_loader, optimizer, epoch)
-            metrics = {}
+            train_time = time.time() - train_start
+            metrics = {
+                "client_id": str(self.cid),
+                "setup_time": self.setup_time,
+                "train_time": train_time,
+                "fit_total_time": time.time() - start_fit
+            }
                 
         return self.get_parameters(config={}), len(self.train_loader.dataset), metrics
 
+
         
     def evaluate(self, parameters, config):
+        import time
+        start_eval = time.time()
         self.set_parameters(parameters)
         te_loss, acc = test(self.net, self.device, self.test_loader)
-        return float(te_loss), len(self.test_loader.dataset), {"accuracy": acc}
+        eval_time = time.time() - start_eval
+        return float(te_loss), len(self.test_loader.dataset), {"accuracy": acc, "eval_time": eval_time}
 
 def client_fn(cid: str) -> FlowerClient:
     """Create a Flower client representing a single organization."""
+    import time
+    start_setup = time.time()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net = SimpleCNN().to(device)
     
@@ -158,33 +183,85 @@ def client_fn(cid: str) -> FlowerClient:
     train_loader = DataLoader(client_dataset, batch_size=CONFIG.get("batch_size", 32), shuffle=True)
     test_loader = DataLoader(GLOBAL_TESTSET, batch_size=CONFIG.get("batch_size", 32), shuffle=False)
     
-    return FlowerClient(cid, net, train_loader, test_loader, device, use_dp=USE_DP)
+    setup_time = time.time() - start_setup
+    client = FlowerClient(cid, net, train_loader, test_loader, device, use_dp=USE_DP)
+    client.setup_time = setup_time
+    return client
 
 
 def fit_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, fl.common.Scalar]]]) -> Dict[str, fl.common.Scalar]:
     if not results or not results[0][1].get("client_id"):
         return {}
     client_stats = []
+    round_timings = []
     for _, m in results:
         client_stats.append({
             "client_id": m["client_id"],
-            "sample_rate": m["sample_rate"],
-            "dp_steps": m["dp_steps"],
-            "sigma": m["sigma"],
-            "C": m["C"]
+            "sample_rate": m.get("sample_rate", 0),
+            "dp_steps": m.get("dp_steps", 0),
+            "sigma": m.get("sigma", 0),
+            "C": m.get("C", 0)
         })
+        round_timings.append({
+            "client_id": m["client_id"],
+            "setup_time": m.get("setup_time", 0),
+            "dp_setup_time": m.get("dp_setup_time", 0),
+            "train_time": m.get("train_time", 0),
+            "fit_total_time": m.get("fit_total_time", 0)
+        })
+    os.makedirs("results/profiling", exist_ok=True)
+    with open("results/profiling/timings.jsonl", "a") as f:
+        f.write(json.dumps({"type": "fit_metrics", "timings": round_timings}) + "\n")
     return {"client_stats": json.dumps(client_stats)}
 
-def evaluate_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, float]]]) -> Dict[str, float]:
+def get_evaluate_fn(testset, device):
+    """Return an evaluation function for server-side evaluation."""
+    def evaluate(
+        server_round: int,
+        parameters: fl.common.NDArrays,
+        config: Dict[str, fl.common.Scalar],
+    ):
+        import time
+        start_eval = time.time()
+        net = SimpleCNN().to(device)
+        params_dict = zip(net.state_dict().keys(), parameters)
+        state_dict = {k: torch.tensor(v) for k, v in params_dict}
+        net.load_state_dict(state_dict, strict=True)
+        
+        test_loader = DataLoader(testset, batch_size=CONFIG.get("batch_size", 32), shuffle=False)
+        loss, acc = test(net, device, test_loader)
+        
+        eval_time = time.time() - start_eval
+        os.makedirs("results/profiling", exist_ok=True)
+        with open("results/profiling/timings.jsonl", "a") as f:
+            f.write(json.dumps({"type": "evaluate_metrics", "timings": [eval_time]}) + "\n")
+            
+        return float(loss), {"accuracy": acc}
+    return evaluate
 
-    """Aggregate evaluation metrics over clients."""
-    if not results:
-        return {}
-    
-    total_examples = sum([num_examples for num_examples, _ in results])
-    weighted_acc = sum([num_examples * m["accuracy"] for num_examples, m in results])
-    
-    return {"accuracy": weighted_acc / total_examples}
+class CheckpointingFedAvg(fl.server.strategy.FedAvg):
+    def aggregate_fit(self, server_round: int, results, failures):
+        aggregated_parameters, aggregated_metrics = super().aggregate_fit(server_round, results, failures)
+        
+        if aggregated_parameters is not None:
+            ndarrays = fl.common.parameters_to_ndarrays(aggregated_parameters)
+            os.makedirs("results/checkpoints", exist_ok=True)
+            np.savez(f"results/checkpoints/round_{server_round}.npz", *ndarrays)
+            
+            client_stats = []
+            for _, fit_res in results:
+                client_stats.append({
+                    "client_id": fit_res.metrics.get("client_id", ""),
+                    "sample_rate": fit_res.metrics.get("sample_rate", 0),
+                    "dp_steps": fit_res.metrics.get("dp_steps", 0),
+                    "sigma": fit_res.metrics.get("sigma", 0),
+                    "C": fit_res.metrics.get("C", 0)
+                })
+            with open(f"results/checkpoints/round_{server_round}_stats.json", "w") as f:
+                json.dump(client_stats, f)
+                
+        return aggregated_parameters, aggregated_metrics
+
 
 def load_baseline_result(mode, seed):
     baseline_path = os.path.join("results", "stage2", f"baseline_{mode}_seed{seed}.json")
@@ -242,19 +319,23 @@ def main():
         
     CLIENT_INDICES, _ = dirichlet_split(GLOBAL_TRAINSET, num_clients, alpha)
     
-    strategy = fl.server.strategy.FedAvg(
-        fraction_fit=1.0,
-        fraction_evaluate=1.0,
-        min_fit_clients=num_clients,
-        min_evaluate_clients=num_clients,
-        min_available_clients=num_clients,
-        evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
-        fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
-    )
-    
-    print(f"CUDA Available: {torch.cuda.is_available()}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Selected Device: {device}")
+    
+    strategy = CheckpointingFedAvg(
+        fraction_fit=1.0,
+        fraction_evaluate=0.0,
+        min_fit_clients=num_clients,
+        min_available_clients=num_clients,
+        fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
+        evaluate_fn=get_evaluate_fn(GLOBAL_TESTSET, device),
+    )
+    
+    # Checkpoints are saved by CheckpointingFedAvg. 
+    # Resume logic is omitted because Flower's start_simulation does not natively 
+    # support resuming the round counter. Injecting initial_parameters would restart 
+    # the simulation from round 1, silently duplicating privacy accounting composition.
+    # See docs/COMPUTE_OPTIMIZATION_REPORT.md for details.
     if torch.cuda.is_available():
         print(f"GPU Name: {torch.cuda.get_device_name(0)}")
     import opacus
@@ -282,7 +363,11 @@ def main():
     
     final_acc = 0.0
     acc_history = []
-    if history.metrics_distributed and "accuracy" in history.metrics_distributed:
+    
+    if history.metrics_centralized and "accuracy" in history.metrics_centralized:
+        acc_history = [acc for _, acc in history.metrics_centralized["accuracy"]]
+        final_acc = acc_history[-1] if acc_history else 0.0
+    elif history.metrics_distributed and "accuracy" in history.metrics_distributed:
         acc_history = [acc for _, acc in history.metrics_distributed["accuracy"]]
         final_acc = acc_history[-1] if acc_history else 0.0
         
@@ -372,9 +457,15 @@ def main():
                     break
                     
             if not stats_str:
-                continue
-                
-            client_stats = json.loads(stats_str)
+                # If flwr simulation history is missing client_stats, attempt to recover from checkpoint
+                chk_path = f"results/checkpoints/round_{round_num}_stats.json"
+                if os.path.exists(chk_path):
+                    with open(chk_path, "r") as f:
+                        client_stats = json.load(f)
+                else:
+                    continue
+            else:
+                client_stats = json.loads(stats_str)
             round_epsilons = {}
             
             for c_stat in client_stats:

@@ -97,19 +97,19 @@ Experiments were run on a GPU environment (Tesla T4 via Colab) to overcome Ray c
 
 \section{Results}
 \subsection{Centralized Baseline (Stage 2)}
-Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs achieves \textbf{74.87\%} test accuracy. This represents the theoretical upper bound without federation or privacy constraints.
+Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs (using the Adam optimizer with a learning rate of 0.001) achieves \textbf{74.87\%} test accuracy. This represents the theoretical upper bound without federation or privacy constraints.
 
 \subsection{Non-private FedAvg (Stage 3)}
 Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 3 rounds severely degrades performance, resulting in \textbf{33.26\%} accuracy. Non-IID data causes local models to diverge sharply, making standard FedAvg aggregation suboptimal.
 
 \subsection{DP-FL (Stage 4)}
-Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{20.14\%} accuracy at $\varepsilon=1.5394$. The noise makes bridging the non-IID divergence even harder.
+Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{20.14\%} accuracy at $\varepsilon=1.5394$ (Note: The structured artifact for this specific full-scale reference run is currently missing and requires a validation rerun). The noise makes bridging the non-IID divergence even harder.
 
 \subsection{Sigma/C Grid Results (Stage 5)}
 We mapped the privacy-utility curve. 
 \begin{itemize}
     \item Higher $\sigma$ decreases $\varepsilon$ (stronger privacy) but hurts accuracy.
-    \item Lower $C$ heavily degrades accuracy but does not impact the mathematical $\varepsilon$ directly.
+    \item The impact of clipping norm $C$ is complex: while it does not impact the mathematical $\varepsilon$ directly, a lower $C=0.1$ can actually outperform $C=1.0$ at high noise levels (e.g., $\sigma=2.0$).
     \item \textbf{Best Privacy}: $\sigma=2.0, C=0.1$ gives $\varepsilon=0.3989$ but accuracy drops to 19.54\%.
     \item \textbf{Best Accuracy}: $\sigma=0.5, C=1.0$ gives 25.11\% accuracy but weak privacy ($\varepsilon=10.8698$).
 \end{itemize}
@@ -125,7 +125,7 @@ We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\si
 Our findings confirm a fundamental tension. To maintain an acceptable privacy guarantee ($\varepsilon < 2.0$), the model accuracy on a complex dataset like CIFAR-10 under non-IID federated conditions collapses to sub-30\%. The injected noise overwhelms the already conflicting local gradients.
 
 \section{Discussion}
-DP-FL requires significantly more communication rounds to converge because individual updates are noisy and bounded. The interplay between weight divergence (from non-IID partitions) and gradient obfuscation (from DP) is the primary obstacle to production-grade DP-FL.
+The current 3-round experiments do not establish eventual convergence behavior. It is hypothesized that DP-FL may require significantly more communication rounds to converge, but this remains to be empirically proven. The interplay between weight divergence (from non-IID partitions) and gradient obfuscation (from DP) is the primary obstacle to production-grade DP-FL.
 
 \section{Limitations}
 \begin{enumerate}

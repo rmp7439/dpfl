@@ -41,7 +41,8 @@ class TestStage3Federated(unittest.TestCase):
         initial_params = [p.copy() for p in client.get_parameters(config={})]
         new_params, num_samples, metrics = client.fit(initial_params, config={})
         self.assertEqual(num_samples, 10)
-        self.assertEqual(metrics, {})
+        self.assertIn("client_id", metrics)
+        self.assertIn("train_time", metrics)
         changed = any(not (p1 == p2).all() for p1, p2 in zip(initial_params, new_params))
         self.assertTrue(changed, "Parameters should change after local training")
 
