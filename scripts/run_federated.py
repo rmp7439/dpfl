@@ -280,6 +280,7 @@ def main():
     parser.add_argument("--C", type=float, help="Max grad norm (C) for DP-SGD")
     parser.add_argument("--alpha", type=float, help="Dirichlet alpha for non-IID split (default: 0.1)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    parser.add_argument("--rounds", type=int, help="Number of communication rounds (overrides config)")
     parser.add_argument("--output-dir", type=str, default="results/stage4", help="Output directory for results")
     args = parser.parse_args()
     
@@ -292,6 +293,10 @@ def main():
         CONFIG["noise_multiplier"] = args.sigma
     if args.C is not None:
         CONFIG["max_grad_norm"] = args.C
+    if args.rounds is not None:
+        if args.rounds <= 0:
+            raise ValueError("--rounds must be a positive integer")
+        CONFIG["num_rounds"] = args.rounds
         
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -365,10 +370,10 @@ def main():
     acc_history = []
     
     if history.metrics_centralized and "accuracy" in history.metrics_centralized:
-        acc_history = [acc for _, acc in history.metrics_centralized["accuracy"]]
+        acc_history = [acc for r, acc in history.metrics_centralized["accuracy"] if r > 0]
         final_acc = acc_history[-1] if acc_history else 0.0
     elif history.metrics_distributed and "accuracy" in history.metrics_distributed:
-        acc_history = [acc for _, acc in history.metrics_distributed["accuracy"]]
+        acc_history = [acc for r, acc in history.metrics_distributed["accuracy"] if r > 0]
         final_acc = acc_history[-1] if acc_history else 0.0
         
     if not USE_DP:
@@ -550,7 +555,7 @@ def main():
                 writer.writerow([stat["round"], max_steps, stat["global_epsilon"], stat["best_alpha"], stat["test_acc"]])
                 
         # Comparison with Stage 2 and Stage 3 - we disable automatic plotting in grid search mode if output_dir is customized
-        if args.output_dir == "results/stage4":
+        if args.output_dir == "results/stage4" or "longrun" in args.output_dir:
             with open(os.path.join(out_dir, "runtime.json"), "a") as f:
                 f.write(json.dumps({"mode": mode, "runtime_seconds": runtime}) + "\n")
                 
