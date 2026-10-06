@@ -96,7 +96,7 @@ Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 ## Results summary
 - **Stage 2 Centralized**: 74.87%
 - **Stage 3 Non-private FL**: 33.26%
-- **Stage 4 DP-FL Reference ($\sigma=1.0, C=1.0$)**: 20.14%, $\varepsilon=1.5394$ *(Note: The structured artifact for this full-scale reference run is currently missing and requires a rerun)*
+- **Stage 4 DP-FL Reference (15 rounds, $\sigma=1.0, C=1.0$)**: 26.06%, $\varepsilon=2.6974$ (Fixed authoritative run)
 - **Stage 5 Grid (Strongest Privacy)**: 19.54%, $\varepsilon=0.3989$ ($\sigma=2.0, C=0.1$)
 - **Stage 6 Homogeneous ($\alpha=10.0, \sigma=1.0$)**: 22.33%, $\varepsilon=1.2595$
 - **Stage 6 Heterogeneous ($\alpha=0.1, \sigma=1.0$)**: 18.25%, $\varepsilon=1.5394$

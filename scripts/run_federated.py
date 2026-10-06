@@ -90,7 +90,8 @@ class FlowerClient(fl.client.NumPyClient):
             actual_batch_size = None
             opt_class = type(optimizer).__name__
             
-            if not os.path.exists("results/stage4/validation.json"):
+            out_dir = CONFIG.get("out_dir", "results/stage4")
+            if not os.path.exists(os.path.join(out_dir, "validation.json")):
                 batch_x, batch_y = next(iter(train_loader))
                 actual_batch_size = len(batch_x)
                 optimizer.zero_grad()
@@ -110,8 +111,8 @@ class FlowerClient(fl.client.NumPyClient):
             epsilon = privacy_engine.accountant.get_epsilon(delta=1e-5)
             print(f"[Client {self.cid}] Opacus Accountant Epsilon: {epsilon:.4f}")
             
-            if not os.path.exists("results/stage4/validation.json"):
-                os.makedirs("results/stage4", exist_ok=True)
+            if not os.path.exists(os.path.join(out_dir, "validation.json")):
+                os.makedirs(out_dir, exist_ok=True)
                 val_data = {
                     "grad_sample_present": grad_sample_valid,
                     "grad_sample_shapes": grad_shapes,
@@ -120,7 +121,7 @@ class FlowerClient(fl.client.NumPyClient):
                     "actual_batch_size_probed": actual_batch_size,
                     "optimizer_class": opt_class
                 }
-                with open("results/stage4/validation.json", "w") as f:
+                with open(os.path.join(out_dir, "validation.json"), "w") as f:
                     json.dump(val_data, f, indent=4)
                     
             metrics = {
@@ -287,6 +288,9 @@ def main():
     parser.add_argument("--rounds", type=int, help="Number of communication rounds (overrides config)")
     parser.add_argument("--output-dir", type=str, default="results/stage4", help="Output directory for results")
     args = parser.parse_args()
+    
+    # Store out_dir in global CONFIG for client-side artifact dumping
+    CONFIG["out_dir"] = args.output_dir
     
     USE_DP = args.enable_dp
     

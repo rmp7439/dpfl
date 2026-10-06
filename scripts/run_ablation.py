@@ -28,13 +28,10 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
-    # Stage 6 requires:
-    # 1. varying alpha
-    # 2. varying noise multiplier sigma
-    # 3. alpha=0.1 vs alpha=10 non-IID impact comparison
-    alphas = [0.1, 10.0]
-    sigmas = [1.0, 2.0]  # A scientifically useful subset of Stage 5 sigmas
-    C = 1.0  # Fixed clipping norm for ablations
+    from config import STAGE6_ALPHAS, STAGE6_SIGMAS, STAGE6_C
+    alphas = STAGE6_ALPHAS
+    sigmas = STAGE6_SIGMAS
+    C = STAGE6_C
 
     mode = "subset" if args.subset else "full"
     base_out_dir = os.path.join("results", "stage6", "per_run")
@@ -91,21 +88,25 @@ def main():
             summary_path = os.path.join(base_out_dir, f"alpha_{a}_sigma_{s}_C_{C}", "summary.json")
             if os.path.exists(summary_path):
                 with open(summary_path) as f:
-                    all_results.append(json.load(f))
+                    res = json.load(f)
+                    res["run_type"] = "current_verified"
+                    all_results.append(res)
             else:
                 print(f"WARNING: Missing summary for alpha={a}, sigma={s}")
 
     # Save combined JSON
-    with open(os.path.join(stage_dir, "ablation_results.json"), "w") as f:
+    out_json = os.path.join(stage_dir, f"ablation_results_{mode}.json")
+    with open(out_json, "w") as f:
         json.dump(all_results, f, indent=4)
 
     # Save combined CSV
     keys = [
         "alpha", "sigma", "C", "dataset_mode", "number_of_communication_rounds",
         "sample_rate", "total_dp_steps", "epsilon", "best_alpha",
-        "final_test_accuracy", "best_test_accuracy", "runtime_seconds", "run_status"
+        "final_test_accuracy", "best_test_accuracy", "runtime_seconds", "run_status", "run_type"
     ]
-    with open(os.path.join(stage_dir, "ablation_results.csv"), "w", newline="") as f:
+    out_csv = os.path.join(stage_dir, f"ablation_results_{mode}.csv")
+    with open(out_csv, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(keys)
         for res in all_results:

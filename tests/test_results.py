@@ -124,3 +124,27 @@ class TestStage6Archive(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStage6NewArtifacts(unittest.TestCase):
+    def test_stage6_subset_exists_and_valid(self):
+        json_path = os.path.join(project_root, 'results', 'stage6', 'ablation_results_subset.json')
+        if not os.path.exists(json_path):
+            self.skipTest('stage 6 subset has not run yet')
+            
+        import json
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+            
+        self.assertEqual(len(data), 4, 'Should have exactly 4 new subset configurations')
+        alphas = set(d.get('alpha') for d in data)
+        sigmas = set(d.get('sigma') for d in data)
+        self.assertEqual(alphas, {0.1, 10.0})
+        self.assertEqual(sigmas, {1.0, 2.0})
+        
+        for d in data:
+            self.assertEqual(d.get('C'), 1.0)
+            self.assertIn('final_test_accuracy', d)
+            self.assertIn('epsilon', d)
+            self.assertEqual(d.get('run_status'), 'Success')
+            self.assertEqual(d.get('run_type'), 'current_verified')

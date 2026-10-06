@@ -25,6 +25,13 @@ SUBSET_CONFIG = {
     "max_grad_norm": 1.0,
 }
 
+STAGE5_SIGMAS = [0.5, 1.0, 1.5, 2.0]
+STAGE5_C_VALUES = [0.1, 1.0]
+
+STAGE6_ALPHAS = [0.1, 10.0]
+STAGE6_SIGMAS = [1.0, 2.0]
+STAGE6_C = 1.0
+
 FULL_CONFIG = {
     # Data parameters
     "num_samples": 50000,

@@ -29,8 +29,9 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
-    sigmas = [0.5, 1.0, 1.5, 2.0]
-    Cs = [0.1, 1.0]
+    from config import STAGE5_SIGMAS, STAGE5_C_VALUES
+    sigmas = STAGE5_SIGMAS
+    Cs = STAGE5_C_VALUES
 
     mode = "subset" if args.subset else "full"
     base_out_dir = os.path.join("results", "stage5", "per_run")
@@ -90,7 +91,8 @@ def main():
                 print(f"WARNING: Missing summary for sigma={s}, C={c}")
 
     # Save combined JSON
-    with open(os.path.join(grid_dir, "grid_results.json"), "w") as f:
+    out_json = os.path.join(grid_dir, f"grid_results_{mode}.json")
+    with open(out_json, "w") as f:
         json.dump(all_results, f, indent=4)
 
     # Save combined CSV
@@ -99,7 +101,8 @@ def main():
         "sample_rate", "total_dp_steps", "epsilon", "best_alpha",
         "final_test_accuracy", "best_test_accuracy", "runtime_seconds", "run_status"
     ]
-    with open(os.path.join(grid_dir, "grid_results.csv"), "w", newline="") as f:
+    out_csv = os.path.join(grid_dir, f"grid_results_{mode}.csv")
+    with open(out_csv, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(keys)
         for res in all_results:
