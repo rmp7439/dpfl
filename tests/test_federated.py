@@ -57,9 +57,14 @@ class TestStage3Federation(unittest.TestCase):
         federated.CLIENT_INDICES = {0: [0, 1, 2]}
         federated.GLOBAL_TRAINSET = [0, 1, 2]
         federated.GLOBAL_TESTSET = [0, 1, 2]
+        class MockContext:
+            def __init__(self):
+                self.node_id = 0
+                self.node_config = {"partition-id": 0}
         
-        client = federated.client_fn("0")
-        self.assertFalse(client.use_dp, "Stage 3 client MUST NOT use DP by default")
+        ctx = MockContext()
+        client = federated.client_fn(ctx)
+        self.assertFalse(client.numpy_client.use_dp, "Stage 3 client MUST NOT use DP by default")
         
     def test_optimizer_is_sgd_by_default(self):
         opt_name = CONFIG.get("fed_optimizer", "SGD")

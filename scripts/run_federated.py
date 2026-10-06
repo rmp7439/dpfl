@@ -3,13 +3,12 @@ import sys
 import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path: sys.path.insert(0, project_root)
-src_path = os.path.join(project_root, 'src')
-if src_path not in sys.path: sys.path.insert(0, src_path)
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import flwr as fl
+from flwr.common import Context
 from typing import Dict, List, Tuple, Optional, Union
 import argparse
 import numpy as np
@@ -22,11 +21,11 @@ import time
 import math
 from typing import Dict, List, Tuple
 
-from config import SUBSET_CONFIG, FULL_CONFIG
+from src.config import SUBSET_CONFIG, FULL_CONFIG
 CONFIG = SUBSET_CONFIG
-from model import SimpleCNN
+from src.model import SimpleCNN
 from scripts.train_baseline import get_data, train, test
-from data import dirichlet_split
+from src.data import dirichlet_split
 from opacus.accountants.analysis.rdp import compute_rdp, get_privacy_spent
 
 # Global data placeholders for simulation
@@ -167,7 +166,7 @@ class FlowerClient(fl.client.NumPyClient):
         eval_time = time.time() - start_eval
         return float(te_loss), len(self.test_loader.dataset), {"accuracy": acc, "eval_time": eval_time}
 
-def client_fn(cid: str) -> FlowerClient:
+def client_fn(context: Context) -> fl.client.Client:
     """Create a Flower client representing a single organization."""
     import time
     start_setup = time.time()
@@ -175,7 +174,12 @@ def client_fn(cid: str) -> FlowerClient:
     net = SimpleCNN().to(device)
     
     # Get the client's subset of data
-    client_id = int(cid)
+    try:
+        client_id = int(context.node_config["partition-id"])
+    except (KeyError, AttributeError, TypeError):
+        client_id = int(context.node_id)
+        
+    cid = str(client_id)
     indices = CLIENT_INDICES[client_id]
     
     client_dataset = torch.utils.data.Subset(GLOBAL_TRAINSET, indices)
@@ -186,7 +190,7 @@ def client_fn(cid: str) -> FlowerClient:
     setup_time = time.time() - start_setup
     client = FlowerClient(cid, net, train_loader, test_loader, device, use_dp=USE_DP)
     client.setup_time = setup_time
-    return client
+    return client.to_client()
 
 
 def fit_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, fl.common.Scalar]]]) -> Dict[str, fl.common.Scalar]:
