@@ -1,0 +1,5 @@
+alpha,sigma,C,dataset_mode,number_of_communication_rounds,sample_rate,total_dp_steps,epsilon,best_alpha,final_test_accuracy,best_test_accuracy,runtime_seconds,run_status
+0.1,1.0,1.0,subset,2,0.1111111111111111,30,4.442962601652252,4.1,14.5,14.5,178.0140883922577,Success
+0.1,2.0,1.0,subset,2,0.1111111111111111,30,1.3096340864630966,12.0,9.5,9.5,195.56698989868164,Success
+10.0,1.0,1.0,subset,2,0.1,24,4.224010678885699,4.2,14.5,16.5,90.60426115989685,Success
+10.0,2.0,1.0,subset,2,0.1,24,1.2271095836208041,12.0,11.5,11.5,171.0809464454651,Success

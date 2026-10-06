@@ -3,12 +3,12 @@
     "number_of_training_samples": 1000,
     "number_of_test_samples": 200,
     "number_of_clients": 3,
-    "alpha": 10.0,
-    "sigma": 2.0,
+    "alpha": 0.1,
+    "sigma": 1.5,
     "C": 1.0,
     "delta": 1e-05,
-    "sample_rate": 0.1,
-    "total_dp_steps": 24,
+    "sample_rate": 0.1111111111111111,
+    "total_dp_steps": 30,
     "batch_size": 32,
     "local_epochs": 1,
     "optimizer": "SGD",
@@ -19,14 +19,14 @@
     "number_of_communication_rounds": 2,
     "seed": 42,
     "per_round_test_accuracy": [
-        7.0,
-        11.5
+        8.5,
+        10.0
     ],
-    "final_test_accuracy": 11.5,
-    "best_test_accuracy": 11.5,
-    "epsilon": 1.2271095836208041,
-    "best_alpha": 12.0,
-    "runtime_seconds": 171.0809464454651,
+    "final_test_accuracy": 10.0,
+    "best_test_accuracy": 10.0,
+    "epsilon": 2.087827003917133,
+    "best_alpha": 7.5,
+    "runtime_seconds": 49.579264640808105,
     "run_status": "Success",
-    "timestamp": "2026-10-07T00:03:13.852316"
+    "timestamp": "2026-10-07T00:05:58.255494"
 }
