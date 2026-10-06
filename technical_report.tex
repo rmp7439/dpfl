@@ -126,7 +126,7 @@ Experiments were run on a GPU environment (Tesla T4 via Colab) to overcome Ray c
 
 \section{Results}
 \subsection{Centralized Baseline (Stage 2)}
-Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs (using the Adam optimizer with a learning rate of 0.001) achieves \textbf{74.87\%} test accuracy. This represents the theoretical upper bound without federation or privacy constraints.
+Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs (using the Adam optimizer with a learning rate of 0.001) achieves \textbf{74.87\%} test accuracy. This represents the empirical centralized non-private reference without federation or privacy constraints.
 
 \subsection{Non-private FedAvg (Stage 3)}
 Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 3 rounds severely degrades performance, resulting in \textbf{33.26\%} accuracy. Non-IID data causes local models to diverge sharply, making standard FedAvg aggregation suboptimal.
@@ -156,6 +156,26 @@ We mapped the privacy-utility curve.
     \item \textbf{Best Privacy}: $\sigma=2.0, C=0.1$ gives $\varepsilon=0.3989$ but accuracy drops to 19.54\%.
     \item \textbf{Best Accuracy}: $\sigma=0.5, C=1.0$ gives 25.11\% accuracy but weak privacy ($\varepsilon=10.8698$).
 \end{itemize}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|}
+        \hline
+        $\sigma$ & $C$ & $\delta$ & Best RDP Order & $\varepsilon$ \\
+        \hline
+        0.5 & 0.1 & $10^{-5}$ & 2.3 & 10.8698 \\
+        0.5 & 1.0 & $10^{-5}$ & 2.3 & 10.8698 \\
+        1.0 & 0.1 & $10^{-5}$ & 8.2 & 1.5394 \\
+        1.0 & 1.0 & $10^{-5}$ & 8.2 & 1.5394 \\
+        1.5 & 0.1 & $10^{-5}$ & 19.0 & 0.6354 \\
+        1.5 & 1.0 & $10^{-5}$ & 19.0 & 0.6354 \\
+        2.0 & 0.1 & $10^{-5}$ & 34.0 & 0.3989 \\
+        2.0 & 1.0 & $10^{-5}$ & 34.0 & 0.3989 \\
+        \hline
+    \end{tabular}
+    \caption{Privacy-analysis summary covering all 8 Stage 5 full-data configurations.}
+    \label{tab:stage5_eps}
+\end{table}
 
 \begin{figure}[h]
     \centering
