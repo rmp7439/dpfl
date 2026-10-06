@@ -105,6 +105,7 @@ def main():
             
             plt.figure(figsize=(8, 6))
             plt.plot(r_nums, accs, marker='o', label="DP-FL (Stage 4)")
+            plt.axhline(y=74.87, color='r', linestyle='--', label="Centralized baseline (74.87%)")
             plt.title(f"Figure 2: DP-FL Convergence (Accuracy vs Round){title_suffix}")
             plt.xlabel("Communication Round")
             plt.ylabel("Test Accuracy (%)")

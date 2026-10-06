@@ -91,13 +91,35 @@ We implement DP using Opacus. The \texttt{PrivacyEngine} wraps the local model, 
 \end{itemize}
 
 \section{Privacy Accounting}
-Because the dataset is statically partitioned and clients hold disjoint datasets, we utilize \textbf{parallel composition}. The global privacy loss is bounded by the privacy loss of the worst-case individual client.
-\begin{enumerate}
-    \item We extract the exact sample rate (expected batch size / local dataset size) per client from the Opacus \texttt{DPDataLoader}.
-    \item We track the exact number of DP steps per client per round.
-    \item RDP is computed for each client over all their individual steps.
-    \item We convert RDP to $\varepsilon$ using $\delta=10^{-5}$. The global $\varepsilon$ is $\max(\varepsilon_{clients})$.
-\end{enumerate}
+We utilize Rényi Differential Privacy (RDP) to track the privacy loss analytically across multiple training steps. Because the dataset is statically partitioned using a Dirichlet distribution and clients hold disjoint datasets, we leverage \textbf{parallel composition} across clients. The global privacy guarantee is bounded by the privacy loss of the worst-case individual client. The complete accounting chain is derived as follows:
+
+\subsection{Per-Step Subsampled Gaussian Mechanism}
+At each training step, the \texttt{DPDataLoader} draws a batch with a Poisson sampling rate $q$ (expected batch size divided by local dataset size). Opacus computes the per-sample gradients and clips them to a maximum $L_2$ norm, the clipping threshold $C$. It then adds Gaussian noise with standard deviation $\sigma C$ to the batch-averaged gradient, where $\sigma$ is the noise multiplier. 
+
+\subsection{Rényi Differential Privacy (RDP) Composition}
+For a single DP-SGD step, the privacy loss is quantified by the RDP of order $r$ (distinguished from the Dirichlet heterogeneity parameter $\alpha$), denoted as $\text{RDP}_{\text{step}}(r)$. The exact numerical evaluation of $\text{RDP}_{\text{step}}(r)$ for the subsampled Gaussian mechanism is performed by the Opacus RDP accountant.
+
+Because we assume sequential composition over the DP steps performed by a single client, for $T$ total local DP-SGD steps, the accumulated RDP at order $r$ is:
+\begin{equation}
+    \text{RDP}_T(r) = T \cdot \text{RDP}_{\text{step}}(r)
+\end{equation}
+
+\subsection{Conversion to $(\varepsilon, \delta)$-DP}
+The cumulative RDP is converted back to standard $(\varepsilon, \delta)$-DP using the standard conversion formula for a given target $\delta$:
+\begin{equation}
+    \varepsilon_r(\delta) = \text{RDP}_T(r) + \frac{\log(1/\delta)}{r - 1}
+\end{equation}
+The reported $\varepsilon$ for the client is the minimum over all evaluated Rényi orders $r$:
+\begin{equation}
+    \varepsilon = \min_r \varepsilon_r(\delta)
+\end{equation}
+Finally, under the parallel composition assumption for disjoint client datasets, the global reported epsilon is simply $\max(\varepsilon_{\text{clients}})$.
+
+\subsection{Experimental Application}
+In our experiments, we fix $\delta = 10^{-5}$. The RDP accountant uses the actual sample rate $q$ extracted from the \texttt{DPDataLoader} and the exact accumulated DP step count $T$ for each client. The parameters $\sigma$ and $C$ are defined by the specific experimental run, and the final $\varepsilon$ (with its corresponding minimizing Rényi order) is recorded directly from the Opacus accountant in the run artifacts.
+
+\textbf{Concrete Example (Stage 4)}: 
+In the authoritative 15-round Stage 4 run ($\sigma=1.0, C=1.0$), a client performed $T = 3045$ total DP steps. Evaluated at $\delta = 10^{-5}$, the Opacus accountant identified a minimizing Rényi order of $r = 6.9$, yielding a final worst-case global privacy guarantee of $\varepsilon = 2.6974$.
 
 \section{Experimental Setup}
 Experiments were run on a GPU environment (Tesla T4 via Colab) to overcome Ray compatibility issues on Windows and accelerate Opacus's computationally expensive per-sample gradient hooks.

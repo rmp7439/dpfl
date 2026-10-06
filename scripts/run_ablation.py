@@ -55,6 +55,9 @@ def main():
             print(f"\n--- alpha={a}, sigma={s}, C={C_val} ({mode}) ---")
             output_dir = os.path.join(base_out_dir, f"alpha_{a}_sigma_{s}_C_{C_val}")
             os.makedirs(output_dir, exist_ok=True)
+            summary_path = os.path.join(output_dir, "summary.json")
+            if os.path.exists(summary_path):
+                os.remove(summary_path)
 
             cmd = [
                 sys.executable, os.path.join(os.path.dirname(__file__), "run_federated.py"),
@@ -80,7 +83,9 @@ def main():
     for a in alphas:
         for s in sigmas:
             summary_path = os.path.join(base_out_dir, f"alpha_{a}_sigma_{s}_C_{C_val}", "summary.json")
-            if os.path.exists(summary_path):
+            if (a, s) in failed:
+                print(f"ERROR: Skipping summary collection for failed run alpha={a}, sigma={s}")
+            elif os.path.exists(summary_path):
                 with open(summary_path) as f:
                     all_results.append(json.load(f))
                 successful.append((a, s))
