@@ -21,7 +21,7 @@ import time
 import math
 from typing import Dict, List, Tuple
 
-from src.config import SUBSET_CONFIG, FULL_CONFIG
+from src.config import SUBSET_CONFIG, FULL_CONFIG, get_client_resources
 CONFIG = SUBSET_CONFIG
 from src.model import SimpleCNN
 from scripts.train_baseline import get_data, train, test
@@ -360,11 +360,20 @@ def main():
     except Exception:
         pass
         
+    gpu_available = torch.cuda.is_available()
+    client_resources = get_client_resources(num_clients, USE_DP, gpu_available)
+    print(f"\n--- Resource Configuration ---")
+    print(f"Execution Device: {device}")
+    print(f"Number of Virtual Clients: {num_clients}")
+    print(f"Detected Physical GPUs: {torch.cuda.device_count() if gpu_available else 0}")
+    print(f"Client Resource Allocation: {client_resources}\n")
+        
     history = fl.simulation.start_simulation(
         client_fn=client_fn,
         num_clients=num_clients,
         config=fl.server.ServerConfig(num_rounds=num_rounds),
         strategy=strategy,
+        client_resources=client_resources,
     )
     
     end_time = time.time()

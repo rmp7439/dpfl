@@ -52,3 +52,22 @@ FULL_CONFIG = {
 
 # Default to SUBSET. Scripts must explicitly import and use FULL_CONFIG when running full data.
 CONFIG = SUBSET_CONFIG
+
+def get_client_resources(num_clients: int, use_dp: bool, gpu_available: bool) -> dict:
+    """
+    Centralized resource allocation for Flower virtual clients.
+    Ensures safe concurrency on a single GPU without oversubscription.
+    """
+    if not gpu_available:
+        return {"num_cpus": 1.0, "num_gpus": 0.0}
+        
+    # GPU Mode
+    # A single T4 (16GB) can safely hold 2 DP clients concurrently.
+    if use_dp:
+        # Allocating 0.5 allows exactly 2 to run concurrently per GPU.
+        # This prevents out-of-memory errors on 5-client full runs on a single T4.
+        return {"num_cpus": 1.0, "num_gpus": 0.5}
+    else:
+        # Non-DP can safely run more concurrently. 
+        # Allocating 0.33 allows exactly 3 clients concurrently on 1 GPU.
+        return {"num_cpus": 1.0, "num_gpus": 0.33}
