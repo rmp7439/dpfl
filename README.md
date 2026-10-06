@@ -83,6 +83,13 @@ python scripts/run_privacy_grid.py
 python scripts/run_ablation.py
 ```
 
+## Generating figures
+All publication figures are generated through a single canonical pipeline:
+```bash
+python scripts/generate_figures.py --full
+```
+For validation runs on small data subsets, append `--subset`.
+
 ## Privacy accounting explanation
 Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 1. The sampling rate used for accounting is derived from the DPDataLoader expected batch size and local dataset size.

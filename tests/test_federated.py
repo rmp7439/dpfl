@@ -63,7 +63,7 @@ class TestStage3Federation(unittest.TestCase):
                 self.node_config = {"partition-id": 0}
         
         ctx = MockContext()
-        client = federated.client_fn(ctx)
+        client = federated.client_fn_factory({})(ctx)
         self.assertFalse(client.numpy_client.use_dp, "Stage 3 client MUST NOT use DP by default")
         
     def test_optimizer_is_sgd_by_default(self):

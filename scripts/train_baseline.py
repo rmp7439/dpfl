@@ -106,16 +106,16 @@ def main():
     
     if args.full:
         print("Running centralized baseline on FULL CIFAR-10")
-        CONFIG = FULL_CONFIG
+        run_config = FULL_CONFIG
         trainset, testset = get_data(subset_size=None)
     else:
-        CONFIG = SUBSET_CONFIG
-        print(f"Running centralized baseline on subset ({CONFIG.get('num_samples', 1000)} samples)")
-        trainset, testset = get_data(subset_size=CONFIG.get("num_samples", 1000))
+        run_config = SUBSET_CONFIG
+        print(f"Running centralized baseline on subset ({run_config.get('num_samples', 1000)} samples)")
+        trainset, testset = get_data(subset_size=run_config.get("num_samples", 1000))
         
-    batch_size = CONFIG.get("batch_size", 32)
-    epochs = CONFIG.get("central_epochs", 2)
-    lr = CONFIG.get("central_lr", 0.001)
+    batch_size = run_config.get("batch_size", 32)
+    epochs = run_config.get("central_epochs", 2)
+    lr = run_config.get("central_lr", 0.001)
     
     mode = "full" if args.full else "subset"
 
@@ -185,28 +185,7 @@ def main():
             writer.writerow([i+1, history["train_loss"][i], history["train_acc"][i], 
                              history["test_loss"][i], history["test_acc"][i]])
                              
-    # Plots
-    epochs_range = range(1, epochs + 1)
-    
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(epochs_range, history["train_loss"], label='Train Loss')
-    plt.plot(epochs_range, history["test_loss"], label='Test Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title(f'{mode.capitalize()} Baseline Loss')
-    plt.legend()
-    
-    plt.subplot(1, 2, 2)
-    plt.plot(epochs_range, history["train_acc"], label='Train Acc')
-    plt.plot(epochs_range, history["test_acc"], label='Test Acc')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    plt.title(f'{mode.capitalize()} Baseline Accuracy')
-    plt.legend()
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(out_dir, f"{prefix}_plots_seed{args.seed}.png"))
+
     
     print(f"\nFinal Test Accuracy: {history['test_acc'][-1]:.2f}%")
     print(f"Best Test Accuracy: {best_test_acc:.2f}%")

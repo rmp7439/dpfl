@@ -22,7 +22,6 @@ import math
 from typing import Dict, List, Tuple
 
 from src.config import SUBSET_CONFIG, FULL_CONFIG, get_client_resources
-CONFIG = SUBSET_CONFIG
 from src.model import SimpleCNN
 from scripts.train_baseline import get_data, train, test
 from src.data import dirichlet_split
@@ -35,7 +34,8 @@ CLIENT_INDICES = None
 USE_DP = False
 
 class FlowerClient(fl.client.NumPyClient):
-    def __init__(self, cid, net, train_loader, test_loader, device, use_dp=False):
+    def __init__(self, cid, net, train_loader, test_loader, device, use_dp=False, run_config=None):
+        self.run_config = run_config or {}
         self.cid = cid
         self.net = net
         self.train_loader = train_loader
@@ -56,12 +56,12 @@ class FlowerClient(fl.client.NumPyClient):
         import time
         start_fit = time.time()
         self.set_parameters(parameters)
-        local_epochs = CONFIG.get("local_epochs", 1)
+        local_epochs = self.run_config.get("local_epochs", 1)
         
         if self.use_dp:
             dp_setup_start = time.time()
-            lr = CONFIG.get("dp_lr", 0.01)
-            opt_name = CONFIG.get("fed_optimizer", "SGD")
+            lr = self.run_config.get("dp_lr", 0.01)
+            opt_name = self.run_config.get("fed_optimizer", "SGD")
             if opt_name == "SGD":
                 optimizer = optim.SGD(self.net.parameters(), lr=lr, momentum=0.9)
             else:
@@ -77,8 +77,8 @@ class FlowerClient(fl.client.NumPyClient):
                 module=self.net,
                 optimizer=optimizer,
                 data_loader=self.train_loader,
-                noise_multiplier=CONFIG.get("noise_multiplier", 1.0),
-                max_grad_norm=CONFIG.get("max_grad_norm", 1.0),
+                noise_multiplier=self.run_config.get("noise_multiplier", 1.0),
+                max_grad_norm=self.run_config.get("max_grad_norm", 1.0),
             )
             dp_setup_time = time.time() - dp_setup_start
             
@@ -90,7 +90,7 @@ class FlowerClient(fl.client.NumPyClient):
             actual_batch_size = None
             opt_class = type(optimizer).__name__
             
-            out_dir = CONFIG.get("out_dir", "results/stage4")
+            out_dir = self.run_config.get("out_dir", "results/stage4")
             if not os.path.exists(os.path.join(out_dir, "validation.json")):
                 batch_x, batch_y = next(iter(train_loader))
                 actual_batch_size = len(batch_x)
@@ -116,8 +116,8 @@ class FlowerClient(fl.client.NumPyClient):
                 val_data = {
                     "grad_sample_present": grad_sample_valid,
                     "grad_sample_shapes": grad_shapes,
-                    "clipping_C": CONFIG.get("max_grad_norm", 1.0),
-                    "noise_sigma": CONFIG.get("noise_multiplier", 1.0),
+                    "clipping_C": self.run_config.get("max_grad_norm", 1.0),
+                    "noise_sigma": self.run_config.get("noise_multiplier", 1.0),
                     "actual_batch_size_probed": actual_batch_size,
                     "optimizer_class": opt_class
                 }
@@ -128,8 +128,8 @@ class FlowerClient(fl.client.NumPyClient):
                 "client_id": str(self.cid),
                 "sample_rate": float(actual_sample_rate),
                 "dp_steps": int(actual_steps * local_epochs),
-                "sigma": float(CONFIG.get("noise_multiplier", 1.0)),
-                "C": float(CONFIG.get("max_grad_norm", 1.0)),
+                "sigma": float(self.run_config.get("noise_multiplier", 1.0)),
+                "C": float(self.run_config.get("max_grad_norm", 1.0)),
                 "setup_time": self.setup_time,
                 "dp_setup_time": dp_setup_time,
                 "train_time": train_time,
@@ -137,8 +137,8 @@ class FlowerClient(fl.client.NumPyClient):
             }
             self.net = self.net._module
         else:
-            lr = CONFIG.get("fed_lr", 0.01)
-            opt_name = CONFIG.get("fed_optimizer", "SGD")
+            lr = self.run_config.get("fed_lr", 0.01)
+            opt_name = self.run_config.get("fed_optimizer", "SGD")
             if opt_name == "SGD":
                 optimizer = optim.SGD(self.net.parameters(), lr=lr)
             else:
@@ -167,31 +167,33 @@ class FlowerClient(fl.client.NumPyClient):
         eval_time = time.time() - start_eval
         return float(te_loss), len(self.test_loader.dataset), {"accuracy": acc, "eval_time": eval_time}
 
-def client_fn(context: Context) -> fl.client.Client:
-    """Create a Flower client representing a single organization."""
-    import time
-    start_setup = time.time()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net = SimpleCNN().to(device)
-    
-    # Get the client's subset of data
-    try:
-        client_id = int(context.node_config["partition-id"])
-    except (KeyError, AttributeError, TypeError):
-        client_id = int(context.node_id)
+def client_fn_factory(run_config):
+    def client_fn(context: Context) -> fl.client.Client:
+        """Create a Flower client representing a single organization."""
+        import time
+        start_setup = time.time()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        net = SimpleCNN().to(device)
         
-    cid = str(client_id)
-    indices = CLIENT_INDICES[client_id]
-    
-    client_dataset = torch.utils.data.Subset(GLOBAL_TRAINSET, indices)
-    
-    train_loader = DataLoader(client_dataset, batch_size=CONFIG.get("batch_size", 32), shuffle=True)
-    test_loader = DataLoader(GLOBAL_TESTSET, batch_size=CONFIG.get("batch_size", 32), shuffle=False)
-    
-    setup_time = time.time() - start_setup
-    client = FlowerClient(cid, net, train_loader, test_loader, device, use_dp=USE_DP)
-    client.setup_time = setup_time
-    return client.to_client()
+        # Get the client's subset of data
+        try:
+            client_id = int(context.node_config["partition-id"])
+        except (KeyError, AttributeError, TypeError):
+            client_id = int(context.node_id)
+            
+        cid = str(client_id)
+        indices = CLIENT_INDICES[client_id]
+        
+        client_dataset = torch.utils.data.Subset(GLOBAL_TRAINSET, indices)
+        
+        train_loader = DataLoader(client_dataset, batch_size=run_config.get("batch_size", 32), shuffle=True)
+        test_loader = DataLoader(GLOBAL_TESTSET, batch_size=run_config.get("batch_size", 32), shuffle=False)
+        
+        setup_time = time.time() - start_setup
+        client = FlowerClient(cid, net, train_loader, test_loader, device, use_dp=USE_DP, run_config=run_config)
+        client.setup_time = setup_time
+        return client.to_client()
+    return client_fn
 
 
 def fit_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, fl.common.Scalar]]]) -> Dict[str, fl.common.Scalar]:
@@ -233,7 +235,7 @@ def get_evaluate_fn(testset, device):
         state_dict = {k: torch.tensor(v) for k, v in params_dict}
         net.load_state_dict(state_dict, strict=True)
         
-        test_loader = DataLoader(testset, batch_size=CONFIG.get("batch_size", 32), shuffle=False)
+        test_loader = DataLoader(testset, batch_size=self.run_config.get("batch_size", 32), shuffle=False)
         loss, acc = test(net, device, test_loader)
         
         eval_time = time.time() - start_eval
@@ -276,7 +278,7 @@ def load_baseline_result(mode, seed):
     return None
 
 def main():
-    global GLOBAL_TRAINSET, GLOBAL_TESTSET, CLIENT_INDICES, USE_DP, CONFIG
+    global GLOBAL_TRAINSET, GLOBAL_TESTSET, CLIENT_INDICES, USE_DP
     
     parser = argparse.ArgumentParser(description="Run Flower Federation")
     parser.add_argument("--full", action="store_true", help="Run on full CIFAR-10 instead of subset")
@@ -286,38 +288,38 @@ def main():
     parser.add_argument("--alpha", type=float, help="Dirichlet alpha for non-IID split (default: 0.1)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--rounds", type=int, help="Number of communication rounds (overrides config)")
-    parser.add_argument("--output-dir", type=str, default="results/stage4", help="Output directory for results")
+    parser.add_argument("--output-dir", type=str, default=None, help="Output directory for results")
     args = parser.parse_args()
     
-    # Store out_dir in global CONFIG for client-side artifact dumping
-    CONFIG["out_dir"] = args.output_dir
+    # Store out_dir in global run_config for client-side artifact dumping
+    run_config["out_dir"] = args.output_dir or ("results/stage4" if args.enable_dp else "results/stage3")
     
     USE_DP = args.enable_dp
     
     if args.full:
-        CONFIG = FULL_CONFIG
+        run_config = FULL_run_config
         
     if args.sigma is not None:
-        CONFIG["noise_multiplier"] = args.sigma
+        run_config["noise_multiplier"] = args.sigma
     if args.C is not None:
-        CONFIG["max_grad_norm"] = args.C
+        run_config["max_grad_norm"] = args.C
     if args.rounds is not None:
         if args.rounds <= 0:
             raise ValueError("--rounds must be a positive integer")
-        CONFIG["num_rounds"] = args.rounds
+        run_config["num_rounds"] = args.rounds
         
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
         
-    num_samples = CONFIG.get("num_samples", 1000)
-    num_clients = CONFIG.get("num_clients", 3)
+    num_samples = run_config.get("num_samples", 1000)
+    num_clients = run_config.get("num_clients", 3)
     
     if args.alpha is not None:
         if args.alpha <= 0:
             raise ValueError("alpha must be > 0")
-        CONFIG["alpha"] = args.alpha
+        run_config["alpha"] = args.alpha
         
-    alpha = CONFIG.get("alpha", 0.1)
+    alpha = run_config.get("alpha", 0.1)
     
     mode = "full" if args.full else "subset"
     
@@ -328,7 +330,7 @@ def main():
         print(f"Running Federation on subset ({num_samples} samples), clients: {num_clients}, alpha: {alpha}")
         GLOBAL_TRAINSET, GLOBAL_TESTSET = get_data(subset_size=num_samples)
         
-    num_rounds = CONFIG.get("num_rounds", 2)
+    num_rounds = run_config.get("num_rounds", 2)
         
     CLIENT_INDICES, _ = dirichlet_split(GLOBAL_TRAINSET, num_clients, alpha)
     
@@ -373,7 +375,7 @@ def main():
     print(f"Client Resource Allocation: {client_resources}\n")
         
     history = fl.simulation.start_simulation(
-        client_fn=client_fn,
+        client_fn=client_fn_factory(run_config),
         num_clients=num_clients,
         config=fl.server.ServerConfig(num_rounds=num_rounds),
         strategy=strategy,
@@ -395,7 +397,7 @@ def main():
         
     if not USE_DP:
         # Persistence for Stage 3
-        out_dir = os.path.join("results", "stage3")
+        out_dir = args.output_dir or os.path.join("results", "stage3")
         os.makedirs(out_dir, exist_ok=True)
         prefix = f"federation_{mode}"
         
@@ -406,10 +408,10 @@ def main():
             "number_of_test_samples": len(GLOBAL_TESTSET),
             "number_of_clients": num_clients,
             "alpha": alpha,
-            "batch_size": CONFIG.get("batch_size", 32),
-            "local_epochs": CONFIG.get("local_epochs", 1),
-            "optimizer": CONFIG.get("fed_optimizer", "SGD"),
-            "learning_rate": CONFIG.get("fed_lr", 0.01),
+            "batch_size": run_config.get("batch_size", 32),
+            "local_epochs": run_config.get("local_epochs", 1),
+            "optimizer": run_config.get("fed_optimizer", "SGD"),
+            "learning_rate": run_config.get("fed_lr", 0.01),
             "number_of_communication_rounds": num_rounds,
             "samples_per_client": {k: len(v) for k, v in CLIENT_INDICES.items()},
             "per_round_test_accuracy": acc_history,
@@ -429,32 +431,7 @@ def main():
             for i, acc in enumerate(acc_history):
                 writer.writerow([i+1, acc])
                 
-        # Comparison with Stage 2 baseline
-        baseline = load_baseline_result(mode, args.seed)
-        
-        plt.figure(figsize=(10, 6))
-        rounds = range(1, len(acc_history) + 1)
-        plt.plot(rounds, acc_history, label="Federated (Stage 3)", marker='o')
-        
-        if baseline is not None:
-            baseline_csv_path = os.path.join("results", "stage2", f"baseline_{mode}_seed{args.seed}.csv")
-            baseline_accs = []
-            if os.path.exists(baseline_csv_path):
-                with open(baseline_csv_path, "r") as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        baseline_accs.append(float(row["test_acc"]))
-            if baseline_accs:
-                # Plot baseline up to matching epochs/rounds
-                b_rounds = range(1, len(baseline_accs) + 1)
-                plt.plot(b_rounds, baseline_accs, label="Centralized Baseline (Stage 2)", linestyle='--', color='gray')
-                
-        plt.xlabel('Communication Round / Epoch')
-        plt.ylabel('Test Accuracy (%)')
-        plt.title(f'Federated vs Centralized Learning ({mode.capitalize()})\nNon-IID (alpha={alpha})')
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(os.path.join(out_dir, f"convergence_{mode}_seed{args.seed}.png"))
+
         
         print("\n--- STAGE 3 FINAL RESULTS ---")
         print(f"Final Aggregated Accuracy: {final_acc:.2f}%")
@@ -527,7 +504,7 @@ def main():
         total_steps = max(client_cumulative_steps.values()) if client_cumulative_steps else 0
         max_sample_rate = max([round_stats[-1]["client_details"][cid]["sample_rate"] for cid in client_cumulative_steps]) if round_stats else 0
         
-        out_dir = args.output_dir
+        out_dir = args.output_dir or "results/stage4"
         os.makedirs(out_dir, exist_ok=True)
         prefix = f"dp_{mode}"
         
@@ -537,15 +514,15 @@ def main():
             "number_of_test_samples": len(GLOBAL_TESTSET),
             "number_of_clients": num_clients,
             "alpha": alpha,
-            "sigma": CONFIG.get("noise_multiplier", 1.0),
-            "C": CONFIG.get("max_grad_norm", 1.0),
+            "sigma": run_config.get("noise_multiplier", 1.0),
+            "C": run_config.get("max_grad_norm", 1.0),
             "delta": 1e-5,
             "sample_rate": max_sample_rate,
             "total_dp_steps": total_steps,
-            "batch_size": CONFIG.get("batch_size", 32),
-            "local_epochs": CONFIG.get("local_epochs", 1),
-            "optimizer": CONFIG.get("fed_optimizer", "SGD"),
-            "learning_rate": CONFIG.get("dp_lr", 0.01),
+            "batch_size": run_config.get("batch_size", 32),
+            "local_epochs": run_config.get("local_epochs", 1),
+            "optimizer": run_config.get("fed_optimizer", "SGD"),
+            "learning_rate": run_config.get("dp_lr", 0.01),
             "model": "SimpleCNN",
             "device": str(device),
             "GPU": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None",
@@ -571,49 +548,10 @@ def main():
                 max_steps = max([d["round_steps"] for d in stat["client_details"].values()]) if "client_details" in stat else 0
                 writer.writerow([stat["round"], max_steps, stat["global_epsilon"], stat["best_alpha"], stat["test_acc"]])
                 
-        # Comparison with Stage 2 and Stage 3 - we disable automatic plotting in grid search mode if output_dir is customized
-        if args.output_dir == "results/stage4" or "longrun" in args.output_dir:
-            with open(os.path.join(out_dir, "runtime.json"), "a") as f:
-                f.write(json.dumps({"mode": mode, "runtime_seconds": runtime}) + "\n")
-                
-            baseline = load_baseline_result(mode, args.seed)
-            stage3_path = os.path.join("results", "stage3", f"federation_{mode}_seed{args.seed}.json")
-            stage3_accs = []
-            if os.path.exists(stage3_path):
-                with open(os.path.join("results", "stage3", f"federation_{mode}_seed{args.seed}.csv"), "r") as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        stage3_accs.append(float(row["test_acc"]))
-                        
-            plt.figure(figsize=(10, 6))
-            rounds = range(1, len(acc_history) + 1)
-            plt.plot(rounds, acc_history, label=f"DP-FedAvg (Stage 4, ε={final_epsilon:.2f})", marker='o')
-            
-            if stage3_accs:
-                s3_rounds = range(1, len(stage3_accs) + 1)
-                plt.plot(s3_rounds, stage3_accs, label="FedAvg (Stage 3)", linestyle='-.', marker='x')
-                
-            if baseline is not None:
-                baseline_csv_path = os.path.join("results", "stage2", f"baseline_{mode}_seed{args.seed}.csv")
-                baseline_accs = []
-                if os.path.exists(baseline_csv_path):
-                    with open(baseline_csv_path, "r") as f:
-                        reader = csv.DictReader(f)
-                        for row in reader:
-                            baseline_accs.append(float(row["test_acc"]))
-                if baseline_accs:
-                    b_rounds = range(1, len(baseline_accs) + 1)
-                    plt.plot(b_rounds, baseline_accs, label="Centralized (Stage 2)", linestyle='--', color='gray')
-                    
-            plt.xlabel('Communication Round / Epoch')
-            plt.ylabel('Test Accuracy (%)')
-            plt.title(f'Privacy vs Utility Comparison ({mode.capitalize()})\nNon-IID (alpha={alpha})')
-            plt.legend()
-            plt.tight_layout()
-            plt.savefig(os.path.join(out_dir, f"comparison_{mode}_seed{args.seed}.png"))
+
                 
         print("\n--- DP-SGD FINAL RESULTS ---")
-        print(f"sigma={CONFIG.get('noise_multiplier', 1.0)}, C={CONFIG.get('max_grad_norm', 1.0)}")
+        print(f"sigma={run_config.get('noise_multiplier', 1.0)}, C={run_config.get('max_grad_norm', 1.0)}")
         print(f"Privacy Guarantee: epsilon={final_epsilon:.4f} (delta=1e-5, alpha={final_best_alpha})")
         print(f"Final Aggregated Accuracy: {final_acc:.2f}%")
         print(f"Runtime: {runtime:.2f} seconds")

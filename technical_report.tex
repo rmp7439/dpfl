@@ -103,7 +103,7 @@ Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs 
 Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 3 rounds severely degrades performance, resulting in \textbf{33.26\%} accuracy. Non-IID data causes local models to diverge sharply, making standard FedAvg aggregation suboptimal.
 
 \subsection{DP-FL (Stage 4)}
-Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{20.14\%} accuracy at $\varepsilon=1.5394$ (Note: The structured artifact for this specific full-scale reference run is currently missing and requires a validation rerun). The noise makes bridging the non-IID divergence even harder.
+Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{26.06\%} accuracy at $\varepsilon=2.6974$. The noise makes bridging the non-IID divergence even harder.
 
 \subsection{Sigma/C Grid Results (Stage 5)}
 We mapped the privacy-utility curve. 

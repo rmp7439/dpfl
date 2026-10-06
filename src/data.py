@@ -134,7 +134,7 @@ def main():
     from config import FULL_CONFIG, SUBSET_CONFIG
     active_config = FULL_CONFIG if args.full else SUBSET_CONFIG
     
-    num_clients = active_config.get("number_of_clients", 5)
+    num_clients = active_config.get("num_clients", 5)
     alpha = active_config.get("alpha", 0.1)
     
     if args.full:
@@ -143,9 +143,9 @@ def main():
         json_path = os.path.join("results", "stage1", "split_validation_full.json")
         filename = os.path.join("results", "stage1", "client_class_distribution_full.png")
     else:
-        dataset = get_cifar10(subset_size=SUBSET_CONFIG["number_of_training_samples"])
+        dataset = get_cifar10(subset_size=SUBSET_CONFIG["num_samples"])
         alpha = SUBSET_CONFIG["alpha"]
-        num_clients = SUBSET_CONFIG["number_of_clients"]
+        num_clients = SUBSET_CONFIG["num_clients"]
         json_path = os.path.join("results", "stage1", "split_validation_subset.json")
         filename = os.path.join("results", "stage1", "client_class_distribution_subset.png")
 
