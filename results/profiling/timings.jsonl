@@ -207,3 +207,5 @@
 {"type": "evaluate_metrics", "timings": [0.016199350357055664]}
 {"type": "fit_metrics", "timings": [{"client_id": "0", "setup_time": 0, "dp_setup_time": 0, "train_time": 0, "fit_total_time": 0}, {"client_id": "1", "setup_time": 0, "dp_setup_time": 0, "train_time": 0, "fit_total_time": 0}]}
 {"type": "evaluate_metrics", "timings": [0.018733501434326172]}
+{"type": "fit_metrics", "timings": [{"client_id": "0", "setup_time": 0, "dp_setup_time": 0, "train_time": 0, "fit_total_time": 0}, {"client_id": "1", "setup_time": 0, "dp_setup_time": 0, "train_time": 0, "fit_total_time": 0}]}
+{"type": "evaluate_metrics", "timings": [0.02123880386352539]}
