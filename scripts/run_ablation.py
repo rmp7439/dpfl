@@ -1,28 +1,19 @@
-
 import sys
 import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path: sys.path.insert(0, project_root)
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
-"""
-Stage 6 Ablation Studies: runs different configurations of (alpha, sigma) 
-with DP-SGD Flower federation on the full CIFAR-10 dataset and compiles results.
 
-Usage:
-    python stage6_ablation.py            # full CIFAR-10 run
-    python stage6_ablation.py --subset   # 1k-sample subset (for validation only)
-"""
-import os
-import sys
 import subprocess
 import json
 import csv
 import argparse
+import datetime
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Stage 6 Ablations")
+    parser = argparse.ArgumentParser(description="Run Stage 6 Ablation")
     parser.add_argument("--subset", action="store_true",
                         help="Run on 1k subset (validation only, NOT official results)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -31,22 +22,23 @@ def main():
     from config import STAGE6_ALPHAS, STAGE6_SIGMAS, STAGE6_C
     alphas = STAGE6_ALPHAS
     sigmas = STAGE6_SIGMAS
-    C = STAGE6_C
+    C_val = STAGE6_C
 
-    mode = "subset" if args.subset else "full"
-    base_out_dir = os.path.join("results", "stage6", "per_run")
-    stage_dir = os.path.join("results", "stage6")
+    mode = "subset_validation" if args.subset else "full"
+    grid_dir = os.path.join("results", "stage6", mode)
+    base_out_dir = os.path.join(grid_dir, "per_run")
 
     os.makedirs(base_out_dir, exist_ok=True)
-    os.makedirs(stage_dir, exist_ok=True)
+
+    expected_runs = len(alphas) * len(sigmas)
 
     print(f"\n{'='*60}")
-    print(f"STAGE 6 ABLATION SEARCH — mode={mode}, seed={args.seed}")
+    print(f"STAGE 6 ABLATION — mode={mode}, seed={args.seed}")
     print(f"{'='*60}")
     print(f"  alpha values : {alphas}")
     print(f"  sigma values : {sigmas}")
-    print(f"  C            : {C}")
-    print(f"  {len(alphas) * len(sigmas)} total runs")
+    print(f"  C value      : {C_val}")
+    print(f"  {expected_runs} total runs expected")
     print(f"  Results      : {base_out_dir}")
     print(f"{'='*60}\n")
 
@@ -54,12 +46,14 @@ def main():
     env["PYTHONUNBUFFERED"] = "1"
 
     failed = []
+    missing = []
+    successful = []
 
     # 1. Run all configurations sequentially
     for a in alphas:
         for s in sigmas:
-            print(f"\n--- alpha={a}, sigma={s}, C={C} ({mode}) ---")
-            output_dir = os.path.join(base_out_dir, f"alpha_{a}_sigma_{s}_C_{C}")
+            print(f"\n--- alpha={a}, sigma={s}, C={C_val} ({mode}) ---")
+            output_dir = os.path.join(base_out_dir, f"alpha_{a}_sigma_{s}_C_{C_val}")
             os.makedirs(output_dir, exist_ok=True)
 
             cmd = [
@@ -67,7 +61,7 @@ def main():
                 "--enable-dp",
                 "--alpha", str(a),
                 "--sigma", str(s),
-                "--C", str(C),
+                "--C", str(C_val),
                 "--output-dir", output_dir,
                 "--seed", str(args.seed),
             ]
@@ -80,22 +74,22 @@ def main():
                 print(f"ERROR: Run failed for alpha={a}, sigma={s}: {e}")
                 failed.append((a, s))
 
-    # 2. Compile ablation results
+    # 2. Compile grid results
     print("\nCompiling Ablation Results...")
     all_results = []
     for a in alphas:
         for s in sigmas:
-            summary_path = os.path.join(base_out_dir, f"alpha_{a}_sigma_{s}_C_{C}", "summary.json")
+            summary_path = os.path.join(base_out_dir, f"alpha_{a}_sigma_{s}_C_{C_val}", "summary.json")
             if os.path.exists(summary_path):
                 with open(summary_path) as f:
-                    res = json.load(f)
-                    res["run_type"] = "current_verified"
-                    all_results.append(res)
+                    all_results.append(json.load(f))
+                successful.append((a, s))
             else:
-                print(f"WARNING: Missing summary for alpha={a}, sigma={s}")
+                print(f"ERROR: Missing summary for alpha={a}, sigma={s}")
+                missing.append((a, s))
 
     # Save combined JSON
-    out_json = os.path.join(stage_dir, f"ablation_results_{mode}.json")
+    out_json = os.path.join(grid_dir, "ablation_results.json")
     with open(out_json, "w") as f:
         json.dump(all_results, f, indent=4)
 
@@ -103,9 +97,9 @@ def main():
     keys = [
         "alpha", "sigma", "C", "dataset_mode", "number_of_communication_rounds",
         "sample_rate", "total_dp_steps", "epsilon", "best_alpha",
-        "final_test_accuracy", "best_test_accuracy", "runtime_seconds", "run_status", "run_type"
+        "final_test_accuracy", "best_test_accuracy", "runtime_seconds", "run_status"
     ]
-    out_csv = os.path.join(stage_dir, f"ablation_results_{mode}.csv")
+    out_csv = os.path.join(grid_dir, "ablation_results.csv")
     with open(out_csv, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(keys)
@@ -113,11 +107,21 @@ def main():
             writer.writerow([res.get(k, "") for k in keys])
 
     print(f"\n{'='*60}")
-    print(f"Ablation search complete: {len(all_results)} runs compiled")
+    print(f"Ablation complete:")
+    print(f"Expected runs  : {expected_runs}")
+    print(f"Successful runs: {len(successful)}")
+    print(f"Failed runs    : {len(failed)}")
+    print(f"Missing runs   : {len(missing)}")
     if failed:
-        print(f"FAILED runs: {failed}")
-    print(f"Artifacts: {stage_dir}")
+        print(f"FAILED configs: {failed}")
+    if missing:
+        print(f"MISSING configs: {missing}")
+    print(f"Artifacts: {grid_dir}")
     print(f"{'='*60}")
+
+    if failed or missing:
+        print("ERROR: Not all expected runs completed successfully.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,20 +1,10 @@
-
 import sys
 import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path: sys.path.insert(0, project_root)
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path: sys.path.insert(0, src_path)
-"""
-Stage 5 Grid Search: runs 8 configurations of (sigma, C) with DP-SGD Flower federation
-on the full CIFAR-10 dataset and compiles results into a unified artifact.
 
-Usage:
-    python run_privacy_grid.py            # full CIFAR-10 run
-    python run_privacy_grid.py --subset   # 1k-sample subset (for validation only)
-"""
-import os
-import sys
 import subprocess
 import json
 import csv
@@ -33,19 +23,20 @@ def main():
     sigmas = STAGE5_SIGMAS
     Cs = STAGE5_C_VALUES
 
-    mode = "subset" if args.subset else "full"
-    base_out_dir = os.path.join("results", "stage5", "per_run")
-    grid_dir = os.path.join("results", "stage5")
+    mode = "subset_validation" if args.subset else "full"
+    grid_dir = os.path.join("results", "stage5", mode)
+    base_out_dir = os.path.join(grid_dir, "per_run")
 
     os.makedirs(base_out_dir, exist_ok=True)
-    os.makedirs(grid_dir, exist_ok=True)
+
+    expected_runs = len(sigmas) * len(Cs)
 
     print(f"\n{'='*60}")
     print(f"STAGE 5 GRID SEARCH — mode={mode}, seed={args.seed}")
     print(f"{'='*60}")
     print(f"  sigma values : {sigmas}")
     print(f"  C values     : {Cs}")
-    print(f"  8 total runs")
+    print(f"  {expected_runs} total runs expected")
     print(f"  Results      : {base_out_dir}")
     print(f"{'='*60}\n")
 
@@ -53,6 +44,8 @@ def main():
     env["PYTHONUNBUFFERED"] = "1"
 
     failed = []
+    missing = []
+    successful = []
 
     # 1. Run all configurations sequentially
     for s in sigmas:
@@ -87,11 +80,13 @@ def main():
             if os.path.exists(summary_path):
                 with open(summary_path) as f:
                     all_results.append(json.load(f))
+                successful.append((s, c))
             else:
-                print(f"WARNING: Missing summary for sigma={s}, C={c}")
+                print(f"ERROR: Missing summary for sigma={s}, C={c}")
+                missing.append((s, c))
 
     # Save combined JSON
-    out_json = os.path.join(grid_dir, f"grid_results_{mode}.json")
+    out_json = os.path.join(grid_dir, "grid_results.json")
     with open(out_json, "w") as f:
         json.dump(all_results, f, indent=4)
 
@@ -101,7 +96,7 @@ def main():
         "sample_rate", "total_dp_steps", "epsilon", "best_alpha",
         "final_test_accuracy", "best_test_accuracy", "runtime_seconds", "run_status"
     ]
-    out_csv = os.path.join(grid_dir, f"grid_results_{mode}.csv")
+    out_csv = os.path.join(grid_dir, "grid_results.csv")
     with open(out_csv, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(keys)
@@ -109,11 +104,21 @@ def main():
             writer.writerow([res.get(k, "") for k in keys])
 
     print(f"\n{'='*60}")
-    print(f"Grid search complete: {len(all_results)} runs compiled")
+    print(f"Grid search complete:")
+    print(f"Expected runs  : {expected_runs}")
+    print(f"Successful runs: {len(successful)}")
+    print(f"Failed runs    : {len(failed)}")
+    print(f"Missing runs   : {len(missing)}")
     if failed:
-        print(f"FAILED runs: {failed}")
+        print(f"FAILED configs: {failed}")
+    if missing:
+        print(f"MISSING configs: {missing}")
     print(f"Artifacts: {grid_dir}")
     print(f"{'='*60}")
+
+    if failed or missing:
+        print("ERROR: Not all expected runs completed successfully.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

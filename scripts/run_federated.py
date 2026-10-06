@@ -221,7 +221,7 @@ def fit_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, fl.common.Scal
         f.write(json.dumps({"type": "fit_metrics", "timings": round_timings}) + "\n")
     return {"client_stats": json.dumps(client_stats)}
 
-def get_evaluate_fn(testset, device):
+def get_evaluate_fn(testset, device, run_config):
     """Return an evaluation function for server-side evaluation."""
     def evaluate(
         server_round: int,
@@ -235,7 +235,7 @@ def get_evaluate_fn(testset, device):
         state_dict = {k: torch.tensor(v) for k, v in params_dict}
         net.load_state_dict(state_dict, strict=True)
         
-        test_loader = DataLoader(testset, batch_size=self.run_config.get("batch_size", 32), shuffle=False)
+        test_loader = DataLoader(testset, batch_size=run_config.get("batch_size", 32), shuffle=False)
         loss, acc = test(net, device, test_loader)
         
         eval_time = time.time() - start_eval
@@ -247,13 +247,19 @@ def get_evaluate_fn(testset, device):
     return evaluate
 
 class CheckpointingFedAvg(fl.server.strategy.FedAvg):
+    def __init__(self, run_config=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.run_config = run_config or {}
+        
     def aggregate_fit(self, server_round: int, results, failures):
         aggregated_parameters, aggregated_metrics = super().aggregate_fit(server_round, results, failures)
         
         if aggregated_parameters is not None:
             ndarrays = fl.common.parameters_to_ndarrays(aggregated_parameters)
-            os.makedirs("results/checkpoints", exist_ok=True)
-            np.savez(f"results/checkpoints/round_{server_round}.npz", *ndarrays)
+            out_dir = self.run_config.get("out_dir", "results/checkpoints")
+            ckpt_dir = os.path.join(out_dir, "checkpoints")
+            os.makedirs(ckpt_dir, exist_ok=True)
+            np.savez(os.path.join(ckpt_dir, f"round_{server_round}.npz"), *ndarrays)
             
             client_stats = []
             for _, fit_res in results:
@@ -291,13 +297,12 @@ def main():
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for results")
     args = parser.parse_args()
     
-    # Store out_dir in global run_config for client-side artifact dumping
-    run_config["out_dir"] = args.output_dir or ("results/stage4" if args.enable_dp else "results/stage3")
-    
     USE_DP = args.enable_dp
     
-    if args.full:
-        run_config = FULL_run_config
+    from copy import deepcopy
+    run_config = deepcopy(FULL_CONFIG if args.full else SUBSET_CONFIG)
+    run_config["out_dir"] = args.output_dir or ("results/stage4" if args.enable_dp else "results/stage3")
+    
         
     if args.sigma is not None:
         run_config["noise_multiplier"] = args.sigma
@@ -343,7 +348,8 @@ def main():
         min_fit_clients=num_clients,
         min_available_clients=num_clients,
         fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
-        evaluate_fn=get_evaluate_fn(GLOBAL_TESTSET, device),
+        evaluate_fn=get_evaluate_fn(GLOBAL_TESTSET, device, run_config),
+        run_config=run_config,
     )
     
     # Checkpoints are saved by CheckpointingFedAvg. 

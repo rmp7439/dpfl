@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import os
 import argparse
 import json
-from config import CONFIG
 
 def get_cifar10(subset_size=None):
     transform = transforms.Compose([transforms.ToTensor()])
@@ -53,7 +52,7 @@ def dirichlet_split(dataset, num_clients, alpha):
         
     return client_indices, labels
 
-def plot_class_distribution(client_indices, labels, num_classes, filename):
+def plot_class_distribution(client_indices, labels, num_classes, alpha, filename):
     """
     Plots the class distribution for each client.
     """
@@ -75,7 +74,7 @@ def plot_class_distribution(client_indices, labels, num_classes, filename):
         ax.bar(client_ids, client_class_counts[:, c], bottom=bottom, label=f"Class {c}", color=colors[c])
         bottom += client_class_counts[:, c]
         
-    ax.set_title(f"Class Distribution per Client (Dirichlet, alpha={CONFIG.get('alpha', 0.1)})")
+    ax.set_title(f"Class Distribution per Client (Dirichlet, alpha={alpha})")
     ax.set_ylabel("Number of Samples")
     ax.set_xlabel("Client ID")
     ax.legend(title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
@@ -126,12 +125,15 @@ def validate_and_save_json(client_indices, labels, num_classes, client_class_cou
 def main():
     parser = argparse.ArgumentParser(description="Run Dirichlet Data Split")
     parser.add_argument("--full", action="store_true", help="Run on full CIFAR-10 instead of subset")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
-    np.random.seed(42)
-    torch.manual_seed(42)
+    import random
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
     
-    from config import FULL_CONFIG, SUBSET_CONFIG
+    from src.config import FULL_CONFIG, SUBSET_CONFIG
     active_config = FULL_CONFIG if args.full else SUBSET_CONFIG
     
     num_clients = active_config.get("num_clients", 5)
@@ -150,7 +152,7 @@ def main():
         filename = os.path.join("results", "stage1", "client_class_distribution_subset.png")
 
     client_indices, labels = dirichlet_split(dataset, num_clients, alpha)
-    client_class_counts = plot_class_distribution(client_indices, labels, 10, filename)
+    client_class_counts = plot_class_distribution(client_indices, labels, 10, alpha, filename)
     
     validate_and_save_json(client_indices, labels, 10, client_class_counts, alpha, len(labels), args.full, json_path)
     

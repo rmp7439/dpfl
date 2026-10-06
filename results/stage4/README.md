@@ -9,7 +9,7 @@ The previous version (`results/stage4_longrun_buggy_prepatch`) suffered from a C
 
 ## Exact Command Used
 ```bash
-python scripts/run_federated.py --full --enable-dp --rounds 15 --output-dir results/stage4_longrun_fixed
+python scripts/run_federated.py --full --enable-dp --rounds 15 --output-dir results/stage4
 ```
 
 ## Complete Configuration

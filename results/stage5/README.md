@@ -22,7 +22,7 @@ We sweep over two parameters:
 ### Reproducing the Grid Search
 To execute the full grid search on CIFAR-10, run from the project root:
 ```bash
-python scripts/run_privacy_grid.py --full
+python scripts/run_privacy_grid.py
 ```
 
 To quickly validate the pipeline on a 1,000-sample subset:
@@ -32,10 +32,10 @@ python scripts/run_privacy_grid.py --subset
 
 To plot the resulting accuracy vs. cumulative $\epsilon$ curves:
 ```bash
-python plot_stage5.py
+python scripts/generate_figures.py --full
 ```
 
 ### Outputs
-- `grid_results.csv` and `grid_results.json`: Summary of all configurations.
-- `per_run/`: Contains `rounds.csv` for each run, tracing $\epsilon$ iteratively over every round.
-- `accuracy_vs_epsilon.png`: The visual representation of the privacy-utility tradeoff.
+- `full/grid_results.csv` and `full/grid_results.json`: Summary of all configurations.
+- `full/per_run/`: Contains `rounds.csv` for each run, tracing $\epsilon$ iteratively over every round.
+- `figures/fig4_stage5_tradeoff.png`: The visual representation of the privacy-utility tradeoff.

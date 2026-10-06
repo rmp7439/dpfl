@@ -97,19 +97,23 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     args = parser.parse_args()
 
+    import random
+    random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
+    from copy import deepcopy
+    run_config = deepcopy(FULL_CONFIG if args.full else SUBSET_CONFIG)
+    run_config["seed"] = args.seed
+    
     
     if args.full:
         print("Running centralized baseline on FULL CIFAR-10")
-        run_config = FULL_CONFIG
         trainset, testset = get_data(subset_size=None)
     else:
-        run_config = SUBSET_CONFIG
         print(f"Running centralized baseline on subset ({run_config.get('num_samples', 1000)} samples)")
         trainset, testset = get_data(subset_size=run_config.get("num_samples", 1000))
         

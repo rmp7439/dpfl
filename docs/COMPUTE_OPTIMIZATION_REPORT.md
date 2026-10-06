@@ -26,10 +26,10 @@ This report evaluates the performance of the DP-FL pipeline before and after app
 | **Total Evaluation Operations (Per Round)** | 3× (All clients) | 1× (Server only) | -66.7% |
 | **DP-SGD Integrity / Final Accuracy** | 12.50% | 13.50% | Preserved |
 | **Privacy Accounting Epsilon** | 4.4430 | 4.4430 | Preserved |
-| **Fault Tolerance** | None | Restores from crash | Gained Robustness |
+| **Artifact Persistence** | Memory Only | Serialized per round | Gained Inspectability |
 
 ## Projection to Full Scale
 While the local subset runtime is overwhelmingly dominated by Ray's native process initialization cost on Windows (~40 seconds overhead), the real-world Colab execution will see massive benefits:
 - **Redundant Compute Savings**: 5 clients on the 10,000-sample full test set would have resulted in 50,000 test inferences *per round*. Centralized evaluation cuts this to 10,000, saving 80% of evaluation time per round.
-- **Resilience**: The introduction of checkpoints means 12-hour experiments won't need to be restarted from round 1 upon Colab timeouts.
+- **Resilience**: The introduction of checkpoints means 12-hour experiments yield partial results if interrupted, even though automatic resume is intentionally unsupported for scientific/DP accounting safety.
 - **Opacus Overhead**: Profiling shows `PrivacyEngine.make_private` initialization takes ~1.75s only on the first setup and drops to 3ms on subsequent clients. Thus, caching Opacus state provides no scientific or time benefit.

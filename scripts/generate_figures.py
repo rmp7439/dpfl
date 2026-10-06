@@ -17,7 +17,6 @@ def load_run(summary_path):
     rounds_path = summary_path.replace("summary.json", "rounds.csv").replace(".json", ".csv")
     if "federation" in rounds_path:
         rounds_path = rounds_path.replace("federation", "rounds").replace(".csv", ".csv")
-        # Just fallback to rounds.csv if the specific name isn't found
         if not os.path.exists(rounds_path):
             rounds_path = os.path.join(os.path.dirname(summary_path), "rounds.csv")
     
@@ -41,81 +40,96 @@ def main():
         
     is_subset = args.subset
     if not is_subset and not args.full:
-        print("WARNING: Neither --subset nor --full specified. Defaulting to full.")
+        print("ERROR: Must specify either --subset or --full.")
+        sys.exit(1)
     
     if is_subset:
         print("WARNING: Generating VALIDATION figures using subset data. Not for publication.")
         fig_prefix = "val_"
         title_suffix = " (SUBSET VALIDATION)"
+        mode_dir = "subset_validation"
     else:
         print("Generating PUBLICATION figures using full-data artifacts.")
         fig_prefix = ""
         title_suffix = ""
+        mode_dir = "full"
         
     os.makedirs("figures", exist_ok=True)
     print("Generating Figure 2 & 3: Stage 4 DP-FL convergence and privacy accumulation")
     
     # FIGURE 2 & 3: Stage 4
-    stage4_dir = "results/stage4_longrun_fixed"
-    s4 = load_run(os.path.join(stage4_dir, "summary.json"))
-    if s4 and s4["_rounds"]:
-        rounds = s4["_rounds"]
-        r_nums = [r["round"] for r in rounds]
-        accs = [r["test_acc"] for r in rounds]
-        eps = [r["global_epsilon"] for r in rounds]
+    # Note: stage 4 only has a full run. We use it for plotting if it exists.
+    stage4_dir = "results/stage4" if not is_subset else None
+    if stage4_dir and not os.path.exists(os.path.join(stage4_dir, "summary.json")):
+        print(f"ERROR: Stage 4 full run not found in {stage4_dir}")
+        sys.exit(1)
         
-        plt.figure(figsize=(8, 6))
-        plt.plot(r_nums, accs, marker='o', label="DP-FL (Stage 4)")
-        plt.title(f"Figure 2: DP-FL Convergence (Accuracy vs Round){title_suffix}")
-        plt.xlabel("Communication Round")
-        plt.ylabel("Test Accuracy (%)")
-        plt.grid(True, linestyle=":", alpha=0.6)
-        plt.legend()
-        plt.savefig(f"figures/{fig_prefix}fig2_stage4_convergence.png", dpi=300)
-        plt.savefig(f"figures/{fig_prefix}fig2_stage4_convergence.pdf", dpi=300)
-        plt.close()
-        
-        plt.figure(figsize=(8, 6))
-        plt.plot(r_nums, eps, marker='s', color='orange', label="Privacy Loss")
-        plt.title(f"Figure 3: Privacy Accumulation (Epsilon vs Round){title_suffix}")
-        plt.xlabel("Communication Round")
-        plt.ylabel("Cumulative Epsilon")
-        plt.grid(True, linestyle=":", alpha=0.6)
-        plt.legend()
-        plt.savefig(f"figures/{fig_prefix}fig3_stage4_epsilon.png", dpi=300)
-        plt.savefig(f"figures/{fig_prefix}fig3_stage4_epsilon.pdf", dpi=300)
-        plt.close()
+    if stage4_dir:
+        s4 = load_run(os.path.join(stage4_dir, "summary.json"))
+        if s4 and s4["_rounds"]:
+            rounds = s4["_rounds"]
+            r_nums = [r["round"] for r in rounds]
+            accs = [r["test_acc"] for r in rounds]
+            eps = [r["global_epsilon"] for r in rounds]
+            
+            plt.figure(figsize=(8, 6))
+            plt.plot(r_nums, accs, marker='o', label="DP-FL (Stage 4)")
+            plt.title(f"Figure 2: DP-FL Convergence (Accuracy vs Round){title_suffix}")
+            plt.xlabel("Communication Round")
+            plt.ylabel("Test Accuracy (%)")
+            plt.grid(True, linestyle=":", alpha=0.6)
+            plt.legend()
+            plt.savefig(f"figures/{fig_prefix}fig2_stage4_convergence.png", dpi=300)
+            plt.savefig(f"figures/{fig_prefix}fig2_stage4_convergence.pdf", dpi=300)
+            plt.close()
+            
+            plt.figure(figsize=(8, 6))
+            plt.plot(r_nums, eps, marker='s', color='orange', label="Privacy Loss")
+            plt.title(f"Figure 3: Privacy Accumulation (Epsilon vs Round){title_suffix}")
+            plt.xlabel("Communication Round")
+            plt.ylabel("Cumulative Epsilon")
+            plt.grid(True, linestyle=":", alpha=0.6)
+            plt.legend()
+            plt.savefig(f"figures/{fig_prefix}fig3_stage4_epsilon.png", dpi=300)
+            plt.savefig(f"figures/{fig_prefix}fig3_stage4_epsilon.pdf", dpi=300)
+            plt.close()
 
     print("Generating Figure 4: Stage 5 privacy-utility tradeoff")
     # FIGURE 4: Stage 5 tradeoff
     s5_runs = []
-    for d in glob.glob("results/stage5/per_run/*"):
-        r = load_run(os.path.join(d, "summary.json"))
-        if r:
-            s5_runs.append(r)
-    
-    if s5_runs:
-        plt.figure(figsize=(10, 6))
-        for r in s5_runs:
-            s = r.get("sigma", 0)
-            c = r.get("C", 0)
-            if r["_rounds"]:
-                eps = [rd["global_epsilon"] for rd in r["_rounds"]]
-                accs = [rd["test_acc"] for rd in r["_rounds"]]
-                plt.plot(eps, accs, marker='o', label=f"σ={s}, C={c}")
-        plt.title(f"Figure 4: Stage 5 Privacy-Utility Tradeoff{title_suffix}")
-        plt.xlabel("Cumulative Epsilon")
-        plt.ylabel("Test Accuracy (%)")
-        plt.grid(True, linestyle=":", alpha=0.6)
-        plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
-        plt.tight_layout()
-        plt.savefig(f"figures/{fig_prefix}fig4_stage5_tradeoff.png", dpi=300)
-        plt.savefig(f"figures/{fig_prefix}fig4_stage5_tradeoff.pdf", dpi=300)
-        plt.close()
+    s5_per_run_dir = f"results/stage5/{mode_dir}/per_run"
+    if not is_subset and not os.path.exists(s5_per_run_dir):
+        print(f"ERROR: Required full artifact {s5_per_run_dir} not found. Failing clearly.")
+        sys.exit(1)
+        
+    if os.path.exists(s5_per_run_dir):
+        for d in glob.glob(os.path.join(s5_per_run_dir, "*")):
+            r = load_run(os.path.join(d, "summary.json"))
+            if r:
+                s5_runs.append(r)
+        
+        if s5_runs:
+            plt.figure(figsize=(10, 6))
+            for r in s5_runs:
+                s = r.get("sigma", 0)
+                c = r.get("C", 0)
+                if r["_rounds"]:
+                    eps = [rd["global_epsilon"] for rd in r["_rounds"]]
+                    accs = [rd["test_acc"] for rd in r["_rounds"]]
+                    plt.plot(eps, accs, marker='o', label=f"σ={s}, C={c}")
+            plt.title(f"Figure 4: Stage 5 Privacy-Utility Tradeoff{title_suffix}")
+            plt.xlabel("Cumulative Epsilon")
+            plt.ylabel("Test Accuracy (%)")
+            plt.grid(True, linestyle=":", alpha=0.6)
+            plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
+            plt.tight_layout()
+            plt.savefig(f"figures/{fig_prefix}fig4_stage5_tradeoff.png", dpi=300)
+            plt.savefig(f"figures/{fig_prefix}fig4_stage5_tradeoff.pdf", dpi=300)
+            plt.close()
 
     print("Generating Figure 5 & 6: Stage 6 ablation")
     # FIGURE 5 & 6: Stage 6 ablation
-    s6_file = "results/stage6/ablation_results_subset.json" if is_subset else "results/stage6/ablation_results_full.json"
+    s6_file = f"results/stage6/{mode_dir}/ablation_results.json"
     if not os.path.exists(s6_file):
         print(f"ERROR: Required artifact {s6_file} not found. Failing clearly.")
         sys.exit(1)
@@ -131,7 +145,7 @@ def main():
             plt.scatter(d['epsilon'], d['final_test_accuracy'], 
                        label=f"α={d['alpha']}, σ={d['sigma']}", 
                        marker=marker, color=color, s=100)
-        plt.title("Figure 5: Stage 6 Alpha/Sigma Ablation")
+        plt.title(f"Figure 5: Stage 6 Alpha/Sigma Ablation{title_suffix}")
         plt.xlabel("Epsilon")
         plt.ylabel("Final Accuracy (%)")
         plt.grid(True, linestyle=":", alpha=0.6)
@@ -153,7 +167,7 @@ def main():
             plt.scatter(d['epsilon'], d['final_test_accuracy'], 
                        label=f"S6: α={d['alpha']}, σ={d['sigma']}", 
                        marker=marker, color=color, s=100)
-        plt.title("Figure 6: Combined Privacy-Utility Tradeoff")
+        plt.title(f"Figure 6: Combined Privacy-Utility Tradeoff{title_suffix}")
         plt.xlabel("Epsilon")
         plt.ylabel("Final Accuracy (%)")
         plt.grid(True, linestyle=":", alpha=0.6)
