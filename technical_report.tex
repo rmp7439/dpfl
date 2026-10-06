@@ -56,6 +56,13 @@ The CIFAR-10 dataset (50k train, 10k test) is partitioned across 5 clients using
     \item \textbf{$\alpha=10.0$}: Low heterogeneity (near-IID). Clients have an approximately uniform mix of all 10 classes.
 \end{itemize}
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/fig1_stage1_distribution.pdf}
+    \caption{Client Label Distribution under Dirichlet $\alpha=0.1$. Note how clients receive disjoint class concentrations.}
+    \label{fig:stage1}
+\end{figure}
+
 \section{Model Architecture}
 We use a SimpleCNN designed explicitly for DP:
 \begin{itemize}
@@ -103,7 +110,21 @@ Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs 
 Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 3 rounds severely degrades performance, resulting in \textbf{33.26\%} accuracy. Non-IID data causes local models to diverge sharply, making standard FedAvg aggregation suboptimal.
 
 \subsection{DP-FL (Stage 4)}
-Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{26.06\%} accuracy at $\varepsilon=2.6974$. The noise makes bridging the non-IID divergence even harder.
+Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{26.06\%} accuracy at $\varepsilon=2.6974$ after 15 communication rounds.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/fig2_stage4_convergence.pdf}
+    \caption{Stage 4 DP-FL convergence (Accuracy vs Round) over 15 rounds.}
+    \label{fig:stage4_conv}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/fig3_stage4_epsilon.pdf}
+    \caption{Stage 4 DP-FL privacy accumulation (Epsilon vs Round).}
+    \label{fig:stage4_eps}
+\end{figure}
 
 \subsection{Sigma/C Grid Results (Stage 5)}
 We mapped the privacy-utility curve. 
@@ -114,6 +135,13 @@ We mapped the privacy-utility curve.
     \item \textbf{Best Accuracy}: $\sigma=0.5, C=1.0$ gives 25.11\% accuracy but weak privacy ($\varepsilon=10.8698$).
 \end{itemize}
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/fig4_stage5_tradeoff.pdf}
+    \caption{Stage 5 Privacy-Utility Tradeoff across grid configurations.}
+    \label{fig:stage5}
+\end{figure}
+
 \subsection{Alpha Ablation (Stage 6)}
 We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\sigma \in \{1.0, 2.0\}$). Note: These results are reconstructed from historical execution logs rather than a fresh full-data rerun, due to a previous Colab runtime termination, but are rigorously preserved as authoritative evidence.
 \begin{itemize}
@@ -121,15 +149,29 @@ We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\si
     \item The results indicate an empirical association between stronger data heterogeneity and lower observed utility under the tested DP-FL configuration.
 \end{itemize}
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/fig5_stage6_ablation.pdf}
+    \caption{Stage 6 Alpha/Sigma Ablation results showing empirical associations. Note: reconstructed from historical artifacts.}
+    \label{fig:stage6_ablation}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/fig6_combined.pdf}
+    \caption{Combined Privacy-Utility Tradeoff for Stage 5 and Stage 6.}
+    \label{fig:stage6_combined}
+\end{figure}
+
 \section{Privacy--Utility Tradeoff}
-Our findings confirm a fundamental tension. To maintain an acceptable privacy guarantee ($\varepsilon < 2.0$), the model accuracy on a complex dataset like CIFAR-10 under non-IID federated conditions collapses to sub-30\%. The injected noise overwhelms the already conflicting local gradients.
+Our findings confirm a fundamental tension. To maintain an acceptable privacy guarantee ($\varepsilon < 2.0$), the model accuracy on a complex dataset like CIFAR-10 under non-IID federated conditions collapses to sub-30\%. The observed results indicate a substantial utility penalty under the tested combination of DP noise and non-IID heterogeneity.
 
 \section{Discussion}
-The current 3-round experiments do not establish eventual convergence behavior. It is hypothesized that DP-FL may require significantly more communication rounds to converge, but this remains to be empirically proven. The interplay between weight divergence (from non-IID partitions) and gradient obfuscation (from DP) is the primary obstacle to production-grade DP-FL.
+The 15-round run provides empirical evidence of accuracy/privacy evolution over 15 rounds. It does not establish asymptotic convergence. Longer horizons and additional seeds would be needed for stronger convergence claims. The observed results indicate a substantial utility penalty under the tested combination of DP noise and non-IID heterogeneity.
 
 \section{Limitations}
 \begin{enumerate}
-    \item \textbf{Rounds}: We were restricted to 3 communication rounds due to computational constraints.
+    \item \textbf{Rounds}: While Stage 4 ran for 15 rounds to study convergence, the Stage 5 and 6 grids were restricted to 3 communication rounds due to computational constraints.
     \item \textbf{Hyperparameters}: $\sigma$ and $C$ were grid-searched, but LR and momentum were frozen. DP-SGD typically requires specifically tuned learning rates.
     \item \textbf{Accounting Assumption}: We assumed perfect parallel composition; dynamic client dropout or overlapping data would require more complex accounting.
     \item \textbf{Secure RNG}: For experimentation, cryptographically secure RNG was disabled to boost speed; production requires it enabled.

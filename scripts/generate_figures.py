@@ -55,6 +55,37 @@ def main():
         mode_dir = "full"
         
     os.makedirs("figures", exist_ok=True)
+    
+    print("Generating Figure 1: Stage 1 Client Label Distribution")
+    s1_mode = "full" if not is_subset else "subset"
+    s1_file = f"results/stage1/split_validation_{s1_mode}.json"
+    if os.path.exists(s1_file):
+        with open(s1_file) as f:
+            s1_data = json.load(f)
+        counts = s1_data.get("class_counts_per_client", {})
+        if counts:
+            import numpy as np
+            n_clients = len(counts)
+            n_classes = len(counts["0"])
+            x = np.arange(n_classes)
+            width = 0.8 / n_clients
+            
+            plt.figure(figsize=(10, 6))
+            for i in range(n_clients):
+                plt.bar(x + i*width, counts[str(i)], width, label=f"Client {i}")
+            
+            plt.title(f"Figure 1: Client Label Distribution under Dirichlet α=0.1{title_suffix}")
+            plt.xlabel("CIFAR-10 Class")
+            plt.ylabel("Number of Samples")
+            plt.xticks(x + width*(n_clients-1)/2, [str(j) for j in range(n_classes)])
+            plt.legend()
+            plt.grid(axis='y', linestyle=':', alpha=0.6)
+            plt.savefig(f"figures/{fig_prefix}fig1_stage1_distribution.png", dpi=300)
+            plt.savefig(f"figures/{fig_prefix}fig1_stage1_distribution.pdf", dpi=300)
+            plt.close()
+    else:
+        print(f"WARNING: Stage 1 split validation file not found at {s1_file}, skipping Figure 1.")
+        
     print("Generating Figure 2 & 3: Stage 4 DP-FL convergence and privacy accumulation")
     
     # FIGURE 2 & 3: Stage 4
@@ -129,7 +160,11 @@ def main():
 
     print("Generating Figure 5 & 6: Stage 6 ablation")
     # FIGURE 5 & 6: Stage 6 ablation
-    s6_file = f"results/stage6/{mode_dir}/ablation_results.json"
+    if not is_subset:
+        s6_file = "results/stage6/historical_reconstructed/ablation_results.json"
+    else:
+        s6_file = "results/stage6/subset_validation/ablation_results.json"
+        
     if not os.path.exists(s6_file):
         print(f"ERROR: Required artifact {s6_file} not found. Failing clearly.")
         sys.exit(1)
