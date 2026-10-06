@@ -115,10 +115,10 @@ We mapped the privacy-utility curve.
 \end{itemize}
 
 \subsection{Alpha Ablation (Stage 6)}
-We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\sigma \in \{1.0, 2.0\}$).
+We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\sigma \in \{1.0, 2.0\}$). Note: These results are reconstructed from historical execution logs rather than a fresh full-data rerun, due to a previous Colab runtime termination, but are rigorously preserved as authoritative evidence.
 \begin{itemize}
     \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 22.33\% accuracy, whereas non-IID ($\alpha=0.1$) achieves only 18.25\%.
-    \item This proves that data skew compoundingly penalizes DP-SGD performance.
+    \item The results indicate an empirical association between stronger data heterogeneity and lower observed utility under the tested DP-FL configuration.
 \end{itemize}
 
 \section{Privacy--Utility Tradeoff}

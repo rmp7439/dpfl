@@ -119,7 +119,7 @@ Full-scale DP-FL experiments (Stage 4-6) computationally mandate a GPU (e.g., Te
 To reproduce the validated GPU stack without `CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH` errors on Colab T4 instances:
 1. Do not use the default cu130 stack which causes mismatch errors.
 2. Do not disable cuDNN.
-3. Install the verified CUDA 12.6 PyTorch build:
+3. Install the verified CUDA 12.6 PyTorch build using the unified requirements file:
    ```bash
    pip install -r requirements.txt
    ```
