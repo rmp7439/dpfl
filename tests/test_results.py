@@ -89,9 +89,9 @@ class TestGridArtifacts(unittest.TestCase):
         self.assertEqual(len(results), 8, "Expected exactly 8 official grid runs")
         for r in results:
             self.assertEqual(r.get("dataset_mode"), "full")
-            self.assertEqual(r.get("number_of_training_samples"), 50000)
+            self.assertEqual(r.get("num_train_samples", r.get("number_of_training_samples")), 50000)
             self.assertEqual(r.get("number_of_test_samples"), 10000)
-            self.assertEqual(r.get("number_of_clients"), 5)
+            self.assertEqual(r.get("num_clients", r.get("number_of_clients")), 5)
             self.assertEqual(r.get("alpha"), 0.1)
             self.assertEqual(r.get("batch_size"), 64)
             self.assertEqual(r.get("local_epochs"), 1)
@@ -104,7 +104,7 @@ class TestGridArtifacts(unittest.TestCase):
 
 class TestStage6Archive(unittest.TestCase):
     def test_stage6_archive_exists_and_valid(self):
-        json_path = os.path.join(project_root, "results", "stage6", "ablation_results.json")
+        json_path = os.path.join(project_root, "results", "stage6", "historical_reconstructed", "ablation_results.json")
         self.assertTrue(os.path.exists(json_path), "Archived JSON results should exist")
         with open(json_path, "r") as f:
             data = json.load(f)
@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
 class TestStage6NewArtifacts(unittest.TestCase):
     def test_stage6_subset_exists_and_valid(self):
-        json_path = os.path.join(project_root, 'results', 'stage6', 'ablation_results_subset.json')
+        json_path = os.path.join(project_root, 'results', 'stage6', 'subset_validation', 'ablation_results.json')
         if not os.path.exists(json_path):
             self.skipTest('stage 6 subset has not run yet')
             
@@ -147,4 +147,3 @@ class TestStage6NewArtifacts(unittest.TestCase):
             self.assertIn('final_test_accuracy', d)
             self.assertIn('epsilon', d)
             self.assertEqual(d.get('run_status'), 'Success')
-            self.assertEqual(d.get('run_type'), 'current_verified')

@@ -162,7 +162,7 @@ def main():
     # Save JSON config & results
     result_data = {
         "dataset_mode": mode,
-        "number_of_training_samples": len(trainset),
+        "num_train_samples": len(trainset),
         "number_of_test_samples": len(testset),
         "seed": args.seed,
         "model_name": "SimpleCNN+GroupNorm",

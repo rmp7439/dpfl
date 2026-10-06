@@ -410,9 +410,9 @@ def main():
         result_data = {
             "seed": args.seed,
             "dataset_mode": mode,
-            "number_of_training_samples": len(GLOBAL_TRAINSET),
+            "num_train_samples": len(GLOBAL_TRAINSET),
             "number_of_test_samples": len(GLOBAL_TESTSET),
-            "number_of_clients": num_clients,
+            "num_clients": num_clients,
             "alpha": alpha,
             "batch_size": run_config.get("batch_size", 32),
             "local_epochs": run_config.get("local_epochs", 1),
@@ -516,9 +516,9 @@ def main():
         
         result_data = {
             "dataset_mode": mode,
-            "number_of_training_samples": len(GLOBAL_TRAINSET),
+            "num_train_samples": len(GLOBAL_TRAINSET),
             "number_of_test_samples": len(GLOBAL_TESTSET),
-            "number_of_clients": num_clients,
+            "num_clients": num_clients,
             "alpha": alpha,
             "sigma": run_config.get("noise_multiplier", 1.0),
             "C": run_config.get("max_grad_norm", 1.0),

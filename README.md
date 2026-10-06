@@ -32,7 +32,6 @@ How severely does the strict bound of Differential Privacy degrade the classific
 ## Repository structure
 ```text
 DPFL/
-├── archive/             # Archived development and validation material
 ├── data/                # Dataset storage
 ├── figures/             # Generated research figures
 ├── results/             # Structured experimental results and evidence
@@ -123,7 +122,6 @@ To reproduce the validated GPU stack without `CUDNN_STATUS_SUBLIBRARY_VERSION_MI
 3. Install the verified CUDA 12.6 PyTorch build:
    ```bash
    pip install -r requirements.txt
-   pip install -r requirements-gpu.txt
    ```
 4. Restart the Colab runtime before importing `torch`.
 5. Note: `secure_mode=False` is acceptable for fast experimentation, but final/production privacy runs must use `secure_mode=True`.

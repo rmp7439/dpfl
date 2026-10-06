@@ -105,7 +105,7 @@ def validate_and_save_json(client_indices, labels, num_classes, client_class_cou
     validation_data = {
         "dataset_mode": "full" if is_full else "subset",
         "number_of_samples": len(labels),
-        "number_of_clients": len(client_indices),
+        "num_clients": len(client_indices),
         "alpha": alpha,
         "seed": 42,
         "samples_per_client": {k: len(v) for k, v in client_indices.items()},
