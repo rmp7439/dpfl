@@ -109,6 +109,18 @@ The official experiments leverage deterministic seeds (seed=42). However, Ray-ba
 ## GPU requirements
 Full-scale DP-FL experiments (Stage 4-6) computationally mandate a GPU (e.g., Tesla T4 on Colab) due to Opacus's per-sample gradient hooks. 
 
+**Google Colab T4 Validation:**
+To reproduce the validated GPU stack without `CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH` errors on Colab T4 instances:
+1. Do not use the default cu130 stack which causes mismatch errors.
+2. Do not disable cuDNN.
+3. Install the verified CUDA 12.6 PyTorch build:
+   ```bash
+   pip install -r requirements.txt
+   pip install -r requirements-gpu.txt
+   ```
+4. Restart the Colab runtime before importing `torch`.
+5. Note: `secure_mode=False` is acceptable for fast experimentation, but final/production privacy runs must use `secure_mode=True`.
+
 ## Known Windows/Flower limitations
 Ray Virtual Client Engine support on native Windows is highly limited and prone to crashes or timeouts. Researchers on Windows must use WSL2 or execute on a Linux/Colab cloud instance.
 
