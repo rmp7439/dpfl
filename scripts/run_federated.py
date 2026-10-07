@@ -104,9 +104,13 @@ class FlowerClient(fl.client.NumPyClient):
                 optimizer.zero_grad()
             
             train_start = time.time()
+            total_loss = 0.0
             for epoch in range(1, local_epochs + 1):
-                train(self.net, self.device, train_loader, optimizer, epoch)
+                epoch_loss, _ = train(self.net, self.device, train_loader, optimizer, epoch)
+                total_loss += epoch_loss
             train_time = time.time() - train_start
+            
+            avg_train_loss = total_loss / local_epochs if local_epochs > 0 else 0.0
                 
             epsilon = privacy_engine.accountant.get_epsilon(delta=1e-5)
             print(f"[Client {self.cid}] Opacus Accountant Epsilon: {epsilon:.4f}")
@@ -133,7 +137,8 @@ class FlowerClient(fl.client.NumPyClient):
                 "setup_time": self.setup_time,
                 "dp_setup_time": dp_setup_time,
                 "train_time": train_time,
-                "fit_total_time": time.time() - start_fit
+                "fit_total_time": time.time() - start_fit,
+                "train_loss": avg_train_loss
             }
             self.net = self.net._module
         else:
@@ -145,14 +150,19 @@ class FlowerClient(fl.client.NumPyClient):
                 optimizer = optim.Adam(self.net.parameters(), lr=lr)
                 
             train_start = time.time()
+            total_loss = 0.0
             for epoch in range(1, local_epochs + 1):
-                train(self.net, self.device, self.train_loader, optimizer, epoch)
+                epoch_loss, _ = train(self.net, self.device, self.train_loader, optimizer, epoch)
+                total_loss += epoch_loss
             train_time = time.time() - train_start
+            
+            avg_train_loss = total_loss / local_epochs if local_epochs > 0 else 0.0
             metrics = {
                 "client_id": str(self.cid),
                 "setup_time": self.setup_time,
                 "train_time": train_time,
-                "fit_total_time": time.time() - start_fit
+                "fit_total_time": time.time() - start_fit,
+                "train_loss": avg_train_loss
             }
                 
         return self.get_parameters(config={}), len(self.train_loader.dataset), metrics
@@ -207,7 +217,8 @@ def fit_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, fl.common.Scal
             "sample_rate": m.get("sample_rate", 0),
             "dp_steps": m.get("dp_steps", 0),
             "sigma": m.get("sigma", 0),
-            "C": m.get("C", 0)
+            "C": m.get("C", 0),
+            "train_loss": m.get("train_loss", 0.0)
         })
         round_timings.append({
             "client_id": m["client_id"],
@@ -219,7 +230,12 @@ def fit_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, fl.common.Scal
     os.makedirs("results/profiling", exist_ok=True)
     with open("results/profiling/timings.jsonl", "a") as f:
         f.write(json.dumps({"type": "fit_metrics", "timings": round_timings}) + "\n")
-    return {"client_stats": json.dumps(client_stats)}
+        
+    total_examples = sum([num_examples for num_examples, _ in results])
+    weighted_loss = sum([num_examples * m.get("train_loss", 0.0) for num_examples, m in results])
+    avg_train_loss = weighted_loss / total_examples if total_examples > 0 else 0.0
+    
+    return {"client_stats": json.dumps(client_stats), "train_loss": avg_train_loss}
 
 def get_evaluate_fn(testset, device, run_config):
     """Return an evaluation function for server-side evaluation."""
@@ -268,7 +284,8 @@ class CheckpointingFedAvg(fl.server.strategy.FedAvg):
                     "sample_rate": fit_res.metrics.get("sample_rate", 0),
                     "dp_steps": fit_res.metrics.get("dp_steps", 0),
                     "sigma": fit_res.metrics.get("sigma", 0),
-                    "C": fit_res.metrics.get("C", 0)
+                    "C": fit_res.metrics.get("C", 0),
+                    "train_loss": fit_res.metrics.get("train_loss", 0.0)
                 })
             with open(f"results/checkpoints/round_{server_round}_stats.json", "w") as f:
                 json.dump(client_stats, f)
@@ -401,6 +418,10 @@ def main():
         acc_history = [acc for r, acc in history.metrics_distributed["accuracy"] if r > 0]
         final_acc = acc_history[-1] if acc_history else 0.0
         
+    train_loss_history = []
+    if history.metrics_distributed_fit and "train_loss" in history.metrics_distributed_fit:
+        train_loss_history = [loss for r, loss in history.metrics_distributed_fit["train_loss"] if r > 0]
+        
     if not USE_DP:
         # Persistence for Stage 3
         out_dir = args.output_dir or os.path.join("results", "stage3")
@@ -421,6 +442,7 @@ def main():
             "number_of_communication_rounds": num_rounds,
             "samples_per_client": {k: len(v) for k, v in CLIENT_INDICES.items()},
             "per_round_test_accuracy": acc_history,
+            "per_round_train_loss": train_loss_history,
             "final_test_accuracy": final_acc,
             "best_test_accuracy": max(acc_history) if acc_history else 0.0,
             "execution_status": "Success",
@@ -433,9 +455,10 @@ def main():
             
         with open(os.path.join(out_dir, f"{prefix}_seed{args.seed}.csv"), "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["round", "test_acc"])
+            writer.writerow(["round", "train_loss", "test_acc"])
             for i, acc in enumerate(acc_history):
-                writer.writerow([i+1, acc])
+                t_loss = train_loss_history[i] if i < len(train_loss_history) else 0.0
+                writer.writerow([i+1, t_loss, acc])
                 
 
         
@@ -501,6 +524,7 @@ def main():
                 "global_epsilon": worst_eps,
                 "best_alpha": worst_alpha,
                 "test_acc": acc,
+                "train_loss": train_loss_history[r_idx] if r_idx < len(train_loss_history) else 0.0,
                 "worst_client": worst_client,
                 "client_details": round_epsilons
             })
@@ -535,6 +559,7 @@ def main():
             "number_of_communication_rounds": num_rounds,
             "seed": args.seed,
             "per_round_test_accuracy": acc_history,
+            "per_round_train_loss": train_loss_history,
             "final_test_accuracy": final_acc,
             "best_test_accuracy": max(acc_history) if acc_history else 0.0,
             "epsilon": final_epsilon,
@@ -549,10 +574,10 @@ def main():
             
         with open(os.path.join(out_dir, "rounds.csv"), "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["round", "max_dp_steps", "global_epsilon", "best_alpha", "test_acc"])
+            writer.writerow(["round", "max_dp_steps", "global_epsilon", "best_alpha", "train_loss", "test_acc"])
             for stat in round_stats:
                 max_steps = max([d["round_steps"] for d in stat["client_details"].values()]) if "client_details" in stat else 0
-                writer.writerow([stat["round"], max_steps, stat["global_epsilon"], stat["best_alpha"], stat["test_acc"]])
+                writer.writerow([stat["round"], max_steps, stat["global_epsilon"], stat["best_alpha"], stat["train_loss"], stat["test_acc"]])
                 
 
                 

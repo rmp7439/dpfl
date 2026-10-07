@@ -7,6 +7,33 @@ import glob
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from cycler import cycler
+
+# PUBLICATION-QUALITY PLOTTING CONFIGURATION
+# ------------------------------------------
+# Explicit non-default style configuration avoiding standard matplotlib style.
+# Ensures LaTeX compatibility, consistent typography, colors, and line widths.
+plt.rcParams.update({
+    "font.family": "serif",
+    "font.serif": ["Times New Roman", "Computer Modern Roman", "DejaVu Serif"],
+    "font.size": 11,
+    "axes.titlesize": 12,
+    "axes.labelsize": 11,
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+    "legend.fontsize": 10,
+    "legend.title_fontsize": 11,
+    "axes.linewidth": 1.2,
+    "lines.linewidth": 2.0,
+    "lines.markersize": 6.0,
+    "grid.alpha": 0.5,
+    "grid.linestyle": "--",
+    "axes.prop_cycle": cycler(color=["#E63946", "#457B9D", "#1D3557", "#2A9D8F", "#F4A261", "#E76F51", "#264653"]),
+    "savefig.bbox": "tight",
+    "savefig.pad_inches": 0.1,
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42
+})
 
 def load_run(summary_path):
     if not os.path.exists(summary_path):
@@ -103,24 +130,58 @@ def main():
             accs = [r["test_acc"] for r in rounds]
             eps = [r["global_epsilon"] for r in rounds]
             
+            # Load centralized baseline for overlay
+            central_accs = []
+            central_loss = []
+            baseline_path = "results/stage2/baseline_full_seed42.csv" if not is_subset else "results/stage2/baseline_subset_seed42.csv"
+            if os.path.exists(baseline_path):
+                with open(baseline_path) as f:
+                    for row in csv.DictReader(f):
+                        central_accs.append(float(row["test_acc"]))
+                        central_loss.append(float(row["train_loss"]))
+            
+            # Figure 2a: Test Accuracy Convergence
             plt.figure(figsize=(8, 6))
             plt.plot(r_nums, accs, marker='o', label="DP-FL (Stage 4)")
-            plt.axhline(y=74.87, color='r', linestyle='--', label="Centralized baseline (74.87%)")
-            plt.title(f"Figure 2: DP-FL Convergence (Accuracy vs Round){title_suffix}")
+            if central_accs:
+                # We align centralized epochs to communication rounds for visual comparison
+                # explicitly labeled to avoid confusion.
+                epochs_per_round = len(central_accs) / len(r_nums)
+                x_central = [i / epochs_per_round + 1 for i in range(len(central_accs))]
+                plt.plot(x_central, central_accs, linestyle='--', color="#E63946", alpha=0.7, 
+                         label="Centralized Baseline (Epochs scaled to Rounds)")
+            plt.title(f"Figure 2a: Test Accuracy Convergence{title_suffix}")
             plt.xlabel("Communication Round")
             plt.ylabel("Test Accuracy (%)")
-            plt.grid(True, linestyle=":", alpha=0.6)
+            plt.grid(True)
             plt.legend()
-            plt.savefig(f"figures/{fig_prefix}fig2_stage4_convergence.png", dpi=300)
-            plt.savefig(f"figures/{fig_prefix}fig2_stage4_convergence.pdf", dpi=300)
+            plt.savefig(f"figures/{fig_prefix}fig2a_stage4_accuracy_convergence.png", dpi=300)
+            plt.savefig(f"figures/{fig_prefix}fig2a_stage4_accuracy_convergence.pdf", dpi=300)
             plt.close()
             
+            # Figure 2b: Training Loss Convergence
+            if "train_loss" in rounds[0]:
+                dp_loss = [r["train_loss"] for r in rounds]
+                plt.figure(figsize=(8, 6))
+                plt.plot(r_nums, dp_loss, marker='o', label="DP-FL (Stage 4)")
+                if central_loss:
+                    plt.plot(x_central, central_loss, linestyle='--', color="#E63946", alpha=0.7, 
+                             label="Centralized Baseline (Epochs scaled to Rounds)")
+                plt.title(f"Figure 2b: Training Loss Convergence{title_suffix}")
+                plt.xlabel("Communication Round")
+                plt.ylabel("Training Loss (Cross Entropy)")
+                plt.grid(True)
+                plt.legend()
+                plt.savefig(f"figures/{fig_prefix}fig2b_stage4_loss_convergence.png", dpi=300)
+                plt.savefig(f"figures/{fig_prefix}fig2b_stage4_loss_convergence.pdf", dpi=300)
+                plt.close()
+            
             plt.figure(figsize=(8, 6))
-            plt.plot(r_nums, eps, marker='s', color='orange', label="Privacy Loss")
+            plt.plot(r_nums, eps, marker='s', color='#2A9D8F', label="Privacy Loss ($\epsilon$)")
             plt.title(f"Figure 3: Privacy Accumulation (Epsilon vs Round){title_suffix}")
             plt.xlabel("Communication Round")
-            plt.ylabel("Cumulative Epsilon")
-            plt.grid(True, linestyle=":", alpha=0.6)
+            plt.ylabel("Cumulative Epsilon ($\epsilon$)")
+            plt.grid(True)
             plt.legend()
             plt.savefig(f"figures/{fig_prefix}fig3_stage4_epsilon.png", dpi=300)
             plt.savefig(f"figures/{fig_prefix}fig3_stage4_epsilon.pdf", dpi=300)
@@ -150,9 +211,9 @@ def main():
                     accs = [rd["test_acc"] for rd in r["_rounds"]]
                     plt.plot(eps, accs, marker='o', label=f"σ={s}, C={c}")
             plt.title(f"Figure 4: Stage 5 Privacy-Utility Tradeoff{title_suffix}")
-            plt.xlabel("Cumulative Epsilon")
+            plt.xlabel("Cumulative Epsilon ($\epsilon$)")
             plt.ylabel("Test Accuracy (%)")
-            plt.grid(True, linestyle=":", alpha=0.6)
+            plt.grid(True)
             plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
             plt.tight_layout()
             plt.savefig(f"figures/{fig_prefix}fig4_stage5_tradeoff.png", dpi=300)
@@ -182,9 +243,9 @@ def main():
                        label=f"α={d['alpha']}, σ={d['sigma']}", 
                        marker=marker, color=color, s=100)
         plt.title(f"Figure 5: Stage 6 Alpha/Sigma Ablation{title_suffix}")
-        plt.xlabel("Epsilon")
+        plt.xlabel("Cumulative Epsilon ($\epsilon$)")
         plt.ylabel("Final Accuracy (%)")
-        plt.grid(True, linestyle=":", alpha=0.6)
+        plt.grid(True)
         plt.legend()
         plt.savefig(f"figures/{fig_prefix}fig5_stage6_ablation.png", dpi=300)
         plt.savefig(f"figures/{fig_prefix}fig5_stage6_ablation.pdf", dpi=300)
@@ -204,9 +265,9 @@ def main():
                        label=f"S6: α={d['alpha']}, σ={d['sigma']}", 
                        marker=marker, color=color, s=100)
         plt.title(f"Figure 6: Combined Privacy-Utility Tradeoff{title_suffix}")
-        plt.xlabel("Epsilon")
+        plt.xlabel("Cumulative Epsilon ($\epsilon$)")
         plt.ylabel("Final Accuracy (%)")
-        plt.grid(True, linestyle=":", alpha=0.6)
+        plt.grid(True)
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
         plt.legend(by_label.values(), by_label.keys())

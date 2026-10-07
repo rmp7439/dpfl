@@ -46,7 +46,19 @@ DPFL/
 └── technical_report.tex
 ```
 
-## Installation
+## Installation and Reproducibility
+
+### Using Docker (Recommended)
+A `Dockerfile` is provided for guaranteed reproducibility without dependency conflicts. It uses Python 3.11 and installs the exact pinned dependencies required for the project.
+
+```bash
+docker build -t dpfl .
+docker run --rm -v ${PWD}/results:/app/results -v ${PWD}/figures:/app/figures dpfl python scripts/train_baseline.py --full
+```
+
+### Local Virtual Environment
+If you prefer to run locally, ensure you are using Python 3.11+ and install the pinned dependencies:
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate      # Windows
@@ -102,7 +114,7 @@ Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 ## Results summary
 - **Stage 2 Centralized**: 74.87%
 - **Stage 3 Non-private FL**: 33.26%
-- **Stage 4 DP-FL Reference (15 rounds, $\sigma=1.0, C=1.0$)**: 26.06%, $\varepsilon=2.6974$ (Fixed authoritative run)
+- **Stage 4 DP-FL Reference (15 rounds, $\sigma=1.0, C=1.0$)**: 26.11%, $\varepsilon=2.6974$ (Fixed authoritative run)
 - **Stage 5 Grid (Strongest Privacy)**: 19.54%, $\varepsilon=0.3989$ ($\sigma=2.0, C=0.1$)
 - **Stage 6 Homogeneous ($\alpha=10.0, \sigma=1.0$)**: 22.33%, $\varepsilon=1.2595$
 - **Stage 6 Heterogeneous ($\alpha=0.1, \sigma=1.0$)**: 18.25%, $\varepsilon=1.5394$
@@ -142,7 +154,7 @@ python -m unittest discover -s tests -p "test_*.py"
 ```
 
 ## Report
-The formal academic report is located at `technical_report.tex`.
+The formal academic report is located at `technical_report.tex`. Please note that this repository does not include a LaTeX compiler. To compile the PDF locally, you will need a LaTeX distribution (such as TeX Live, MiKTeX, or Overleaf). The `.tex` file is structurally verified to compile with `pdflatex`.
 
 ## Citation
 If utilizing this repository for further research, please credit this project and the corresponding authors.

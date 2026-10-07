@@ -1,0 +1,16 @@
+.git
+.gitignore
+.venv
+__pycache__
+.pytest_cache
+.vscode
+data/
+results/
+figures/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.log

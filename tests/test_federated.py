@@ -83,8 +83,8 @@ class TestFederatedPipeline(unittest.TestCase):
 
     def test_fit_metrics_aggregation(self):
         results = [
-            (None, {"client_id": "0", "sample_rate": 0.1, "dp_steps": 10, "sigma": 1.0, "C": 1.0}),
-            (None, {"client_id": "1", "sample_rate": 0.1, "dp_steps": 10, "sigma": 1.0, "C": 1.0})
+            (10, {"client_id": "0", "sample_rate": 0.1, "dp_steps": 10, "sigma": 1.0, "C": 1.0, "train_loss": 0.5}),
+            (10, {"client_id": "1", "sample_rate": 0.1, "dp_steps": 10, "sigma": 1.0, "C": 1.0, "train_loss": 0.6})
         ]
         agg_metrics = fit_metrics_aggregation_fn(results)
         self.assertIn("client_stats", agg_metrics)

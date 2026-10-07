@@ -6,9 +6,9 @@
 \usepackage{geometry}
 \geometry{margin=1in}
 
-\title{Technical Report: Differentially Private Federated Learning (DP-FL) on CIFAR-10}
-\author{DP-FL Research Team}
-\date{September 2026}
+\title{Differentially Private Federated Learning (DP-FL) on CIFAR-10}
+\author{Research Engineering}
+\date{October 2026}
 
 \begin{document}
 
@@ -136,9 +136,16 @@ Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.8\textwidth]{figures/fig2_stage4_convergence.pdf}
-    \caption{Stage 4 DP-FL convergence (Accuracy vs Round) over 15 rounds.}
-    \label{fig:stage4_conv}
+    \includegraphics[width=0.8\textwidth]{figures/fig2a_stage4_accuracy_convergence.pdf}
+    \caption{Stage 4 convergence (Test Accuracy vs Communication Round) over 15 rounds, overlaid with the centralized baseline epochs.}
+    \label{fig:stage4_acc_conv}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/fig2b_stage4_loss_convergence.pdf}
+    \caption{Stage 4 convergence (Training Loss vs Communication Round) over 15 rounds, illustrating the training dynamics of DP-FL compared to the centralized baseline.}
+    \label{fig:stage4_loss_conv}
 \end{figure}
 
 \begin{figure}[h]
