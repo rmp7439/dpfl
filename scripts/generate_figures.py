@@ -101,7 +101,7 @@ def main():
             for i in range(n_clients):
                 plt.bar(x + i*width, counts[str(i)], width, label=f"Client {i}")
             
-            plt.title(f"Figure 1: Client Label Distribution under Dirichlet α=0.1{title_suffix}")
+            plt.title(f"Client Label Distribution under Dirichlet α=0.1{title_suffix}")
             plt.xlabel("CIFAR-10 Class")
             plt.ylabel("Number of Samples")
             plt.xticks(x + width*(n_clients-1)/2, [str(j) for j in range(n_classes)])
@@ -150,7 +150,7 @@ def main():
                 x_central = [i / epochs_per_round + 1 for i in range(len(central_accs))]
                 plt.plot(x_central, central_accs, linestyle='--', color="#E63946", alpha=0.7, 
                          label="Centralized Baseline (Epochs scaled to Rounds)")
-            plt.title(f"Figure 2a: Test Accuracy Convergence{title_suffix}")
+            plt.title(f"Stage 4 DP-FL Accuracy Convergence{title_suffix}")
             plt.xlabel("Communication Round")
             plt.ylabel("Test Accuracy (%)")
             plt.grid(True)
@@ -167,7 +167,7 @@ def main():
                 if central_loss:
                     plt.plot(x_central, central_loss, linestyle='--', color="#E63946", alpha=0.7, 
                              label="Centralized Baseline (Epochs scaled to Rounds)")
-                plt.title(f"Figure 2b: Training Loss Convergence{title_suffix}")
+                plt.title(f"Stage 4 Training Loss Convergence{title_suffix}")
                 plt.xlabel("Communication Round")
                 plt.ylabel("Training Loss (Cross Entropy)")
                 plt.grid(True)
@@ -178,7 +178,7 @@ def main():
             
             plt.figure(figsize=(8, 6))
             plt.plot(r_nums, eps, marker='s', color='#2A9D8F', label="Privacy Loss ($\epsilon$)")
-            plt.title(f"Figure 3: Privacy Accumulation (Epsilon vs Round){title_suffix}")
+            plt.title(f"Stage 4 Privacy Accumulation{title_suffix}")
             plt.xlabel("Communication Round")
             plt.ylabel("Cumulative Epsilon ($\epsilon$)")
             plt.grid(True)
@@ -210,7 +210,7 @@ def main():
                     eps = [rd["global_epsilon"] for rd in r["_rounds"]]
                     accs = [rd["test_acc"] for rd in r["_rounds"]]
                     plt.plot(eps, accs, marker='o', label=f"σ={s}, C={c}")
-            plt.title(f"Figure 4: Stage 5 Privacy-Utility Tradeoff{title_suffix}")
+            plt.title(f"Stage 5 Privacy-Utility Tradeoff{title_suffix}")
             plt.xlabel("Cumulative Epsilon ($\epsilon$)")
             plt.ylabel("Test Accuracy (%)")
             plt.grid(True)
@@ -242,7 +242,7 @@ def main():
             plt.scatter(d['epsilon'], d['final_test_accuracy'], 
                        label=f"α={d['alpha']}, σ={d['sigma']}", 
                        marker=marker, color=color, s=100)
-        plt.title(f"Figure 5: Stage 6 Alpha/Sigma Ablation{title_suffix}")
+        plt.title(f"Stage 6 Alpha/Sigma Ablation{title_suffix}")
         plt.xlabel("Cumulative Epsilon ($\epsilon$)")
         plt.ylabel("Final Accuracy (%)")
         plt.grid(True)
@@ -264,7 +264,7 @@ def main():
             plt.scatter(d['epsilon'], d['final_test_accuracy'], 
                        label=f"S6: α={d['alpha']}, σ={d['sigma']}", 
                        marker=marker, color=color, s=100)
-        plt.title(f"Figure 6: Combined Privacy-Utility Tradeoff{title_suffix}")
+        plt.title(f"Combined Privacy-Utility Tradeoff{title_suffix}")
         plt.xlabel("Cumulative Epsilon ($\epsilon$)")
         plt.ylabel("Final Accuracy (%)")
         plt.grid(True)

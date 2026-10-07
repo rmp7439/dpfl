@@ -6,8 +6,8 @@
 \usepackage{geometry}
 \geometry{margin=1in}
 
-\title{Differentially Private Federated Learning (DP-FL) on CIFAR-10}
-\author{Research Engineering}
+\title{Technical Report: Differentially Private Federated Learning (DP-FL) on CIFAR-10}
+\author{Rudra}
 \date{October 2026}
 
 \begin{document}
@@ -22,7 +22,7 @@ This project implements and evaluates a Differentially Private Federated Learnin
 Federated Learning (FL) allows distributed edge devices to collaboratively train a shared model without transmitting raw data to a central server. However, exchanging model weights or gradients remains vulnerable to inference attacks, where adversaries can reconstruct original training examples. Differential Privacy (DP) mitigates this by injecting calibrated noise and clipping gradients, providing a mathematical guarantee of privacy. In this work, we train a CNN on CIFAR-10 distributed across 5 clients, exploring how data heterogeneity interacts with DP-SGD mechanisms.
 
 \section{Problem Statement}
-The objective is to train a convolutional neural network on a heavily skewed, non-IID partition of CIFAR-10 across distributed clients. The system must guarantee $(\varepsilon, \delta)$-Differential Privacy for each client's dataset. We aim to quantify how much accuracy is sacrificed for strong privacy guarantees, particularly when the underlying local data is highly specialized (non-IID).
+The objective is to train a convolutional neural network on a heavily skewed, non-IID partition of CIFAR-10 across distributed clients. The system must provide an $(\varepsilon, \delta)$-differential privacy guarantee for individual training samples, with the global guarantee obtained under the stated parallel-composition assumption across disjoint client datasets. We aim to quantify how much accuracy is sacrificed for strong privacy guarantees, particularly when the underlying local data is highly specialized (non-IID).
 
 \section{Background}
 \subsection{Federated Learning}
