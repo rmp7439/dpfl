@@ -429,6 +429,8 @@ def main():
         prefix = f"federation_{mode}"
         
         result_data = {
+            "dp_enabled": False,
+            "model": "SimpleCNN",
             "seed": args.seed,
             "dataset_mode": mode,
             "num_train_samples": len(GLOBAL_TRAINSET),
@@ -452,8 +454,17 @@ def main():
         
         with open(os.path.join(out_dir, f"{prefix}_seed{args.seed}.json"), "w") as f:
             json.dump(result_data, f, indent=4)
+        with open(os.path.join(out_dir, "summary.json"), "w") as f:
+            json.dump(result_data, f, indent=4)
             
         with open(os.path.join(out_dir, f"{prefix}_seed{args.seed}.csv"), "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["round", "train_loss", "test_acc"])
+            for i, acc in enumerate(acc_history):
+                t_loss = train_loss_history[i] if i < len(train_loss_history) else 0.0
+                writer.writerow([i+1, t_loss, acc])
+                
+        with open(os.path.join(out_dir, "rounds.csv"), "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["round", "train_loss", "test_acc"])
             for i, acc in enumerate(acc_history):

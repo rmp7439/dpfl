@@ -196,3 +196,44 @@ class TestStage6PrivacyTable(unittest.TestCase):
             elif d['alpha'] == 10.0 and d['sigma'] == 2.0:
                 self.assertAlmostEqual(d['epsilon'], 0.3133, places=4)
                 self.assertAlmostEqual(d['final_test_accuracy'], 10.10)
+
+class TestStage6Multiseed(unittest.TestCase):
+    def test_aggregate_json_exists_and_fields(self):
+        json_path = os.path.join(project_root, 'results', 'stage6', 'multiseed', 'aggregate.json')
+        if not os.path.exists(json_path):
+            self.skipTest('stage 6 multiseed has not run yet')
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+            
+        self.assertGreater(len(data), 0, 'aggregate.json should not be empty')
+        for d in data:
+            self.assertIn('alpha', d)
+            self.assertIn('sigma', d)
+            self.assertIn('C', d)
+            self.assertIn('delta', d)
+            self.assertIn('seeds', d)
+            self.assertIn('number_of_runs', d)
+            self.assertIn('final_accuracy_mean', d)
+            self.assertIn('final_accuracy_std', d)
+            self.assertIn('best_accuracy_mean', d)
+            self.assertIn('best_accuracy_std', d)
+            self.assertIn('epsilon', d)
+            self.assertIn('RDP_order', d)
+
+class TestStage3FedAvgControl(unittest.TestCase):
+    def test_fedavg_control_artifacts(self):
+        control_dir = os.path.join(project_root, 'results', 'stage3', 'federation_15round')
+        if not os.path.exists(control_dir):
+            self.skipTest('stage 3 15-round control has not run yet')
+            
+        summary_path = os.path.join(control_dir, 'summary.json')
+        rounds_path = os.path.join(control_dir, 'rounds.csv')
+        
+        self.assertTrue(os.path.exists(summary_path), 'summary.json missing')
+        self.assertTrue(os.path.exists(rounds_path), 'rounds.csv missing')
+        
+        with open(summary_path, 'r') as f:
+            data = json.load(f)
+            
+        self.assertFalse(data.get('dp_enabled', True), 'dp_enabled should be False')
+        self.assertEqual(data.get('number_of_communication_rounds', 0), 15)
