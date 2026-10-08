@@ -176,7 +176,9 @@ Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs 
 
 \subsection{Non-private FedAvg (Stage 3)}
 
-Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 3 rounds severely degrades performance, resulting in \textbf{33.26\%} accuracy. Non-IID data causes local models to diverge sharply, making standard FedAvg aggregation suboptimal.
+Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 3 rounds severely degrades performance, resulting in \textbf{33.26\%} accuracy. Non-IID data causes local models to diverge sharply, making standard FedAvg aggregation suboptimal. 
+
+To isolate the degradation caused by non-IID federation from the degradation caused by Differential Privacy, we attempted a 15-round non-private FedAvg control ($\alpha=0.1$). Due to known Ray Virtual Client Engine stability issues on native Windows (access violations during simulation), the run crashed at Round 12. However, by Round 11, the non-private model had already achieved \textbf{42.83\%} accuracy, compared to the DP-FL model's peak of 27.29\% across 15 rounds. This confirms that while data heterogeneity significantly degrades the 74.87\% centralized baseline down to ~43\%, the injection of DP noise imposes an additional severe penalty.
 
 \subsection{DP-FL (Stage 4)}
 
