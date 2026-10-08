@@ -17,6 +17,7 @@ def main():
     parser.add_argument("--subset", action="store_true",
                         help="Run on 1k subset (validation only, NOT official results)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--output-root", type=str, default=None, help="Root directory for multiseed outputs")
     args = parser.parse_args()
 
     from config import STAGE6_ALPHAS, STAGE6_SIGMAS, STAGE6_C
@@ -25,8 +26,13 @@ def main():
     C_val = STAGE6_C
 
     mode = "subset_validation" if args.subset else "full"
-    grid_dir = os.path.join("results", "stage6", mode)
-    base_out_dir = os.path.join(grid_dir, "per_run")
+    
+    if args.output_root:
+        grid_dir = args.output_root
+        base_out_dir = args.output_root
+    else:
+        grid_dir = os.path.join("results", "stage6", mode)
+        base_out_dir = os.path.join(grid_dir, "per_run")
 
     os.makedirs(base_out_dir, exist_ok=True)
 
@@ -53,7 +59,11 @@ def main():
     for a in alphas:
         for s in sigmas:
             print(f"\n--- alpha={a}, sigma={s}, C={C_val} ({mode}) ---")
-            output_dir = os.path.join(base_out_dir, f"alpha_{a}_sigma_{s}_C_{C_val}")
+            if args.output_root:
+                dir_name = f"alpha_{a}_sigma_{s}_C_{C_val}_seed_{args.seed}"
+            else:
+                dir_name = f"alpha_{a}_sigma_{s}_C_{C_val}"
+            output_dir = os.path.join(base_out_dir, dir_name)
             os.makedirs(output_dir, exist_ok=True)
             summary_path = os.path.join(output_dir, "summary.json")
             if os.path.exists(summary_path):
@@ -82,7 +92,11 @@ def main():
     all_results = []
     for a in alphas:
         for s in sigmas:
-            summary_path = os.path.join(base_out_dir, f"alpha_{a}_sigma_{s}_C_{C_val}", "summary.json")
+            if args.output_root:
+                dir_name = f"alpha_{a}_sigma_{s}_C_{C_val}_seed_{args.seed}"
+            else:
+                dir_name = f"alpha_{a}_sigma_{s}_C_{C_val}"
+            summary_path = os.path.join(base_out_dir, dir_name, "summary.json")
             if (a, s) in failed:
                 print(f"ERROR: Skipping summary collection for failed run alpha={a}, sigma={s}")
             elif os.path.exists(summary_path):
@@ -94,7 +108,8 @@ def main():
                 missing.append((a, s))
 
     # Save combined JSON
-    out_json = os.path.join(grid_dir, "ablation_results.json")
+    json_name = f"ablation_results_seed_{args.seed}.json" if args.output_root else "ablation_results.json"
+    out_json = os.path.join(grid_dir, json_name)
     with open(out_json, "w") as f:
         json.dump(all_results, f, indent=4)
 
@@ -104,7 +119,8 @@ def main():
         "sample_rate", "total_dp_steps", "epsilon", "best_alpha",
         "final_test_accuracy", "best_test_accuracy", "runtime_seconds", "run_status"
     ]
-    out_csv = os.path.join(grid_dir, "ablation_results.csv")
+    csv_name = f"ablation_results_seed_{args.seed}.csv" if args.output_root else "ablation_results.csv"
+    out_csv = os.path.join(grid_dir, csv_name)
     with open(out_csv, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(keys)

@@ -212,13 +212,13 @@ class TestStage6Multiseed(unittest.TestCase):
             self.assertIn('C', d)
             self.assertIn('delta', d)
             self.assertIn('seeds', d)
-            self.assertIn('number_of_runs', d)
-            self.assertIn('final_accuracy_mean', d)
-            self.assertIn('final_accuracy_std', d)
-            self.assertIn('best_accuracy_mean', d)
-            self.assertIn('best_accuracy_std', d)
+            self.assertIn('num_runs', d)
+            self.assertIn('final_test_accuracy_mean', d)
+            self.assertIn('final_test_accuracy_std', d)
+            self.assertIn('best_test_accuracy_mean', d)
+            self.assertIn('best_test_accuracy_std', d)
             self.assertIn('epsilon', d)
-            self.assertIn('RDP_order', d)
+            self.assertIn('best_alpha', d)
 
 class TestStage3FedAvgControl(unittest.TestCase):
     def test_fedavg_control_artifacts(self):
