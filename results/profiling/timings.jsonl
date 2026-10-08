@@ -250,3 +250,8 @@
 {"type": "evaluate_metrics", "timings": [0.020995140075683594]}
 {"type": "fit_metrics", "timings": [{"client_id": "0", "setup_time": 0, "dp_setup_time": 0, "train_time": 0, "fit_total_time": 0}, {"client_id": "1", "setup_time": 0, "dp_setup_time": 0, "train_time": 0, "fit_total_time": 0}]}
 {"type": "evaluate_metrics", "timings": [0.020498037338256836]}
+{"type": "fit_metrics", "timings": [{"client_id": "0", "setup_time": 0, "dp_setup_time": 0, "train_time": 0, "fit_total_time": 0}, {"client_id": "1", "setup_time": 0, "dp_setup_time": 0, "train_time": 0, "fit_total_time": 0}]}
+{"type": "evaluate_metrics", "timings": [0.04056572914123535]}
+{"type": "evaluate_metrics", "timings": [3.6181623935699463]}
+{"type": "fit_metrics", "timings": [{"client_id": "3", "setup_time": 0.003939390182495117, "dp_setup_time": 0, "train_time": 22.954203128814697, "fit_total_time": 22.95683526992798}, {"client_id": "1", "setup_time": 0.007616519927978516, "dp_setup_time": 0, "train_time": 31.3692684173584, "fit_total_time": 31.371800422668457}, {"client_id": "0", "setup_time": 0.010550737380981445, "dp_setup_time": 0, "train_time": 39.00803804397583, "fit_total_time": 39.01035499572754}, {"client_id": "4", "setup_time": 0.012398481369018555, "dp_setup_time": 0, "train_time": 18.028518438339233, "fit_total_time": 18.032097339630127}, {"client_id": "2", "setup_time": 0.006748199462890625, "dp_setup_time": 0, "train_time": 34.915010929107666, "fit_total_time": 34.91726541519165}]}
+{"type": "evaluate_metrics", "timings": [6.815136432647705]}

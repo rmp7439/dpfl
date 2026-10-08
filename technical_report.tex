@@ -17,7 +17,7 @@
 \maketitle
 
 \begin{abstract}
-This project implements and evaluates a Differentially Private Federated Learning (DP-FL) system on the CIFAR-10 dataset. By combining Flower for federated orchestration and Opacus for Differential Privacy (DP), we investigate the privacy-utility tradeoff under realistic non-IID data distributions (Dirichlet $\alpha=0.1$). Our comprehensive evaluation across varying noise multipliers ($\sigma$), clipping thresholds ($C$), and data heterogeneity levels demonstrates that DP protects individual data samples at the cost of model utility. The negative impact on convergence is severely compounded by high data heterogeneity.
+This project implements and evaluates a Differentially Private Federated Learning (DP-FL) system on the CIFAR-10 dataset. By combining Flower for federated orchestration and Opacus for Differential Privacy (DP), we investigate the privacy-utility tradeoff under realistic non-IID data distributions (Dirichlet $\alpha=0.1$). Our comprehensive evaluation across varying noise multipliers ($\sigma$), clipping thresholds ($C$), and data heterogeneity levels demonstrates that DP protects individual data samples at the cost of model utility. The negative impact on convergence appears empirically associated with high data heterogeneity under the tested configurations.
 \end{abstract}
 
 \section{Introduction}
@@ -116,34 +116,42 @@ We implement DP using Opacus. The \texttt{PrivacyEngine} wraps the local model, 
 
 \section{Privacy Accounting}
 
-We utilize Rényi Differential Privacy (RDP) to track the privacy loss analytically across multiple training steps. Because the dataset is statically partitioned using a Dirichlet distribution and clients hold disjoint datasets, we leverage \textbf{parallel composition} across clients. The global privacy guarantee is bounded by the privacy loss of the worst-case individual client. The complete accounting chain is derived as follows:
+We utilize Rényi Differential Privacy (RDP) to track the privacy loss analytically. Because the dataset is statically partitioned using a Dirichlet distribution and clients hold disjoint datasets, we leverage \textbf{parallel composition} across clients. The global privacy guarantee is bounded by the privacy loss of the worst-case individual client. The complete accounting chain is derived as follows.
+
+We explicitly define the parameters of the privacy accountant:
+\begin{itemize}
+    \item $\alpha$: Rényi order (distinct from the Dirichlet data heterogeneity parameter).
+    \item $\delta$: The target global failure probability, fixed to $10^{-5}$.
+    \item $\sigma$: The noise multiplier.
+    \item $C$: The per-sample gradient clipping norm.
+    \item $q$: The sampling rate (expected batch size divided by local dataset size).
+    \item $T$: The total number of physical DP steps performed by a client.
+\end{itemize}
 
 \subsection{Per-Step Subsampled Gaussian Mechanism}
 
-At each training step, the \texttt{DPDataLoader} draws a batch with a Poisson sampling rate $q$ (expected batch size divided by local dataset size). Opacus computes the per-sample gradients and clips them to a maximum $L_2$ norm, the clipping threshold $C$. It then adds Gaussian noise with standard deviation $\sigma C$ to the batch-averaged gradient, where $\sigma$ is the noise multiplier.
+At each training step, the dataloader draws a batch with sampling rate $q$. Opacus computes the per-sample gradients and clips them to a maximum $L_2$ norm $C$. It then adds Gaussian noise with standard deviation $\sigma C$ to the batch-averaged gradient. Note that while $C$ determines the absolute sensitivity and noise scale added to the gradients, it does not appear directly in the privacy accountant's $\varepsilon$ calculation because the $\sigma$ provided to Opacus already defines the noise multiplier relative to the sensitivity (i.e., noise standard deviation is $\sigma C$, so the ratio of noise to sensitivity is simply $\sigma$).
 
 \subsection{Rényi Differential Privacy (RDP) Composition}
 
-For a single DP-SGD step, the privacy loss is quantified by the RDP of order $r$ (distinguished from the Dirichlet heterogeneity parameter $\alpha$), denoted as $\text{RDP}_{\text{step}}(r)$. The exact numerical evaluation of $\text{RDP}_{\text{step}}(r)$ for the subsampled Gaussian mechanism is performed by the Opacus RDP accountant.
-
-Because we assume sequential composition over the DP steps performed by a single client, for $T$ total local DP-SGD steps, the accumulated RDP at order $r$ is:
+For a single DP-SGD step, the privacy loss is quantified by the RDP of order $\alpha$, denoted as $\text{RDP}_{\text{step}}(\alpha, q, \sigma)$. Because we assume sequential composition over the DP steps performed by a single client, for $T$ total local steps, the accumulated RDP is:
 
 \begin{equation}
-    \text{RDP}_T(r) = T \cdot \text{RDP}_{\text{step}}(r)
+    \text{RDP}_T(\alpha) = T \cdot \text{RDP}_{\text{step}}(\alpha, q, \sigma)
 \end{equation}
 
 \subsection{Conversion to $(\varepsilon, \delta)$-DP}
 
-The cumulative RDP is converted back to standard $(\varepsilon, \delta)$-DP using the standard conversion formula for a given target $\delta$:
+The cumulative RDP is converted back to standard $(\varepsilon, \delta)$-DP. We use the exact conversion formula implemented by the Opacus accountant, which is based on the optimal conversion theorem \cite{balle2020}:
 
 \begin{equation}
-    \varepsilon_r(\delta) = \text{RDP}_T(r) + \frac{\log(1/\delta)}{r - 1}
+    \varepsilon_\alpha(\delta) = \text{RDP}_T(\alpha) - \frac{\log \delta + \log \alpha}{\alpha - 1} + \log\left(\frac{\alpha - 1}{\alpha}\right)
 \end{equation}
 
-The reported $\varepsilon$ for the client is the minimum over all evaluated Rényi orders $r$:
+The reported $\varepsilon$ for the client is the minimum over all evaluated Rényi orders $\alpha$:
 
 \begin{equation}
-    \varepsilon = \min_r \varepsilon_r(\delta)
+    \varepsilon = \min_\alpha \varepsilon_\alpha(\delta)
 \end{equation}
 
 Finally, under the parallel composition assumption for disjoint client datasets, the global reported epsilon is simply $\max(\varepsilon_{\text{clients}})$.
@@ -158,13 +166,13 @@ In the authoritative 15-round Stage 4 run ($\sigma=1.0, C=1.0$), a client perfor
 
 \section{Experimental Setup}
 
-Experiments were run on a GPU environment (Tesla T4 via Colab) to overcome Ray compatibility issues on Windows and accelerate Opacus's computationally expensive per-sample gradient hooks.
+Experiments were initially intended to run on a GPU environment (Tesla T4 via Colab) to overcome Ray compatibility issues on Windows and accelerate Opacus's computationally expensive per-sample gradient hooks. However, empirical analysis of the generated execution artifacts (e.g., `results/stage4/summary.json`) confirms that the authoritative 15-round Stage 4 run, as well as the Stage 2 and Stage 3 baselines, actually executed on a CPU device (`"device": "cpu", "GPU": "None"`). Consequently, the substantial recorded runtimes (such as Stage 4's ~1784.72 seconds, which conflicts with an outer-wrapper `runtime.json` timestamp of ~721.84 seconds, likely due to nested timing scopes) reflect CPU-bound performance. Stage 5 full grid results, by contrast, indicate they successfully leveraged CUDA (`"device": "cuda"`). We report the actual execution hardware as recorded in the provenance artifacts rather than the planned configuration.
 
 \section{Results}
 
 \subsection{Centralized Baseline (Stage 2)}
 
-Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs (using the Adam optimizer with a learning rate of 0.001) achieves \textbf{74.87\%} test accuracy. This represents the empirical centralized non-private reference without federation or privacy constraints.
+Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs (using the Adam optimizer with a learning rate of 0.001) achieves \textbf{74.87\%} test accuracy. This represents the empirical centralized non-private reference without federation or privacy constraints. The achieved centralized baseline was 74.87\%, below the original project target of >85\%, so downstream utility comparisons should be interpreted relative to the achieved baseline rather than the original target.
 
 \subsection{Non-private FedAvg (Stage 3)}
 
@@ -172,7 +180,7 @@ Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 3 rounds
 
 \subsection{DP-FL (Stage 4)}
 
-Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{26.06\%} accuracy at $\varepsilon=2.6974$ after 15 communication rounds.
+Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{26.11\%} accuracy (with a best accuracy of \textbf{27.29\%} at round 14) at $\varepsilon=2.6974$ after 15 communication rounds. Note that due to computational constraints (execution on CPU rather than the intended GPU), we were unable to perform hyperparameter tuning of the federated learning rate or momentum specifically for the DP configurations; it is possible that further utility improvements could be attained by tuning the optimizer specifically for DP.
 
 \begin{figure}[h]
     \centering
@@ -237,9 +245,26 @@ We mapped the privacy-utility curve.
 
 We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\sigma \in \{1.0, 2.0\}$). Note: These results are reconstructed from historical execution logs rather than a fresh full-data rerun, due to a previous Colab runtime termination, but are rigorously preserved as authoritative evidence.
 
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|c|c|}
+        \hline
+        $\alpha$ (Heterogeneity) & $\sigma$ & $C$ & $\delta$ & Best Rényi Order & $\varepsilon$ & Final Accuracy \\
+        \hline
+        0.1 & 1.0 & 1.0 & $10^{-5}$ & 8.2 & 1.5394 & 18.25\% \\
+        10.0 & 1.0 & 1.0 & $10^{-5}$ & 9.2 & 1.2595 & 22.33\% \\
+        0.1 & 2.0 & 1.0 & $10^{-5}$ & 34.0 & 0.3989 & 11.87\% \\
+        10.0 & 2.0 & 1.0 & $10^{-5}$ & 38.0 & 0.3133 & 10.10\% \\
+        \hline
+    \end{tabular}
+    \caption{Stage 6 privacy-analysis summary (reconstructed historical runs).}
+    \label{tab:stage6_eps}
+\end{table}
+
 \begin{itemize}
-    \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 22.33\% accuracy, whereas non-IID ($\alpha=0.1$) achieves only 18.25\%.
-    \item The results indicate an empirical association between stronger data heterogeneity and lower observed utility under the tested DP-FL configuration.
+    \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 22.33\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 18.25\%. Under the tested configuration, the $\alpha=0.1$ condition exhibited lower observed utility than $\alpha=10.0$.
+    \item Interestingly, this ordering reverses at $\sigma=2.0$, where non-IID ($\alpha=0.1$) achieves 11.87\% compared to near-IID ($\alpha=10.0$) at 10.10\%.
+    \item Due to the lack of GPU compute in the current environment, a multi-seed robustness run to verify these effects statistically remains pending. We cannot claim a definitive compounding penalty caused by DP and data heterogeneity until multi-seed replication is performed.
 \end{itemize}
 
 \begin{figure}[h]
@@ -282,6 +307,9 @@ The official protocol relies on Linux/Colab execution due to Ray compatibility l
 We successfully implemented a fully accountable DP-FL pipeline using modern frameworks (Flower, Opacus). While mathematical privacy guarantees are achievable, they enforce a severe utility penalty on image classification tasks under realistic non-IID conditions.
 
 \begin{thebibliography}{9}
+
+\bibitem{balle2020}
+Balle, B., Barthe, G., and Gaboardi, M. ``Hypothesis Testing Interpretations and Rényi Differential Privacy.'' AISTATS 2020.
 
 \bibitem{mcmahan}
 McMahan et al. ``Communication-Efficient Learning of Deep Networks from Decentralized Data'' (FedAvg). AISTATS 2017.

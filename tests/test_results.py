@@ -147,3 +147,52 @@ class TestStage6NewArtifacts(unittest.TestCase):
             self.assertIn('final_test_accuracy', d)
             self.assertIn('epsilon', d)
             self.assertEqual(d.get('run_status'), 'Success')
+
+class TestStage4Artifacts(unittest.TestCase):
+    def test_stage4_results(self):
+        json_path = os.path.join(project_root, 'results', 'stage4', 'summary.json')
+        if not os.path.exists(json_path):
+            self.skipTest('stage 4 has not run yet')
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+        self.assertAlmostEqual(data['final_test_accuracy'], 26.11)
+        self.assertAlmostEqual(data['best_test_accuracy'], 27.29)
+        # Find best round
+        accs = data['per_round_test_accuracy']
+        best_round = accs.index(data['best_test_accuracy']) + 1
+        self.assertEqual(best_round, 14)
+
+class TestEpsilonAccounting(unittest.TestCase):
+    def test_conversion_formula(self):
+        import numpy as np
+        rdp = 5.0
+        alpha = 10.0
+        delta = 1e-5
+        expected_eps = rdp - (np.log(delta) + np.log(alpha)) / (alpha - 1) + np.log((alpha - 1) / alpha)
+        
+        # Test opacus directly
+        from opacus.accountants.analysis.rdp import get_privacy_spent
+        eps, opt_alpha = get_privacy_spent(orders=[alpha], rdp=[rdp], delta=delta)
+        self.assertAlmostEqual(eps, expected_eps)
+
+class TestStage6PrivacyTable(unittest.TestCase):
+    def test_stage6_table_values(self):
+        json_path = os.path.join(project_root, 'results', 'stage6', 'historical_reconstructed', 'ablation_results.json')
+        if not os.path.exists(json_path):
+            self.skipTest('stage 6 reconstructed has not run yet')
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+        
+        for d in data:
+            if d['alpha'] == 0.1 and d['sigma'] == 1.0:
+                self.assertAlmostEqual(d['epsilon'], 1.5394, places=4)
+                self.assertAlmostEqual(d['final_test_accuracy'], 18.25)
+            elif d['alpha'] == 10.0 and d['sigma'] == 1.0:
+                self.assertAlmostEqual(d['epsilon'], 1.2595, places=4)
+                self.assertAlmostEqual(d['final_test_accuracy'], 22.33)
+            elif d['alpha'] == 0.1 and d['sigma'] == 2.0:
+                self.assertAlmostEqual(d['epsilon'], 0.3989, places=4)
+                self.assertAlmostEqual(d['final_test_accuracy'], 11.87)
+            elif d['alpha'] == 10.0 and d['sigma'] == 2.0:
+                self.assertAlmostEqual(d['epsilon'], 0.3133, places=4)
+                self.assertAlmostEqual(d['final_test_accuracy'], 10.10)

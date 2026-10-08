@@ -30,8 +30,8 @@ python scripts/run_federated.py --full --enable-dp --rounds 15 --output-dir resu
 ## Experiment Results
 - **Total DP steps**: 3045
 - **Final epsilon**: 2.6974
-- **Final accuracy**: 26.06%
-- **Best accuracy**: 26.06% (Achieved at Round 15)
+- **Final accuracy**: 26.11%
+- **Best accuracy**: 27.29% (Achieved at Round 14)
 
 ## Metrics Source
 Per-round test accuracy is collected directly from the centralized evaluations performed by the Flower server at the end of each round. Epsilon is continuously monitored and aggregated iteratively per client using the Opacus RDP accountant based on the actual DP steps taken.

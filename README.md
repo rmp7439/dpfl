@@ -10,7 +10,7 @@ How severely does the strict bound of Differential Privacy degrade the classific
 - Dirichlet non-IID client partitioning to simulate realistic data skew.
 - Integration of Opacus DP-SGD with Flower federated training.
 - Empirical mapping of the privacy-utility tradeoff across a comprehensive grid of hyperparameter configurations.
-- Alpha ablation study identifying the compounding penalty of data heterogeneity on DP models.
+- Alpha ablation study identifying the empirical utility penalty of data heterogeneity on DP models.
 - Parallel composition privacy accounting extracting empirical dataloader sample rates.
 
 ## Architecture
@@ -112,9 +112,9 @@ Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 *Note: Clipping norm $C$ strictly bounds per-sample gradient sensitivity, and Opacus scales injected Gaussian noise according to $C$ and $\sigma$.*
 
 ## Results summary
-- **Stage 2 Centralized**: 74.87%
+- **Stage 2 Centralized**: 74.87% (Note: This empirical baseline fell below the original project target of >85%, thus downstream utility comparisons are made relative to 74.87% rather than the original target).
 - **Stage 3 Non-private FL**: 33.26%
-- **Stage 4 DP-FL Reference (15 rounds, $\sigma=1.0, C=1.0$)**: 26.06%, $\varepsilon=2.6974$ (Fixed authoritative run)
+- **Stage 4 DP-FL Reference (15 rounds, $\sigma=1.0, C=1.0$)**: 26.11%, $\varepsilon=2.6974$ (best: 27.29% at round 14)
 - **Stage 5 Grid (Strongest Privacy)**: 19.54%, $\varepsilon=0.3989$ ($\sigma=2.0, C=0.1$)
 - **Stage 6 Homogeneous ($\alpha=10.0, \sigma=1.0$)**: 22.33%, $\varepsilon=1.2595$
 - **Stage 6 Heterogeneous ($\alpha=0.1, \sigma=1.0$)**: 18.25%, $\varepsilon=1.5394$
@@ -124,8 +124,11 @@ Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 ## Reproducibility
 The official experiments leverage deterministic seeds (seed=42). However, Ray-based multi-client simulation can introduce execution-level non-determinism. Opacus Secure RNG was disabled for execution speed, therefore the implementation is intended for experimental/research use rather than production privacy deployment.
 
-## GPU requirements
-Full-scale DP-FL experiments (Stage 4-6) computationally mandate a GPU (e.g., Tesla T4 on Colab) due to Opacus's per-sample gradient hooks. 
+## Hardware and Runtime Caveats
+While experiments were planned for a GPU environment (Tesla T4 via Colab) to accelerate Opacus's per-sample gradient hooks, empirical analysis of the execution artifacts confirms that Stages 2, 3, and 4 were actually executed on a CPU. This is documented transparently in the final report. Only Stage 5 full grid results reflect CUDA execution.
+
+## Stage 6 Robustness Status
+The Stage 6 ablation results indicate an empirical association between stronger data heterogeneity and lower observed utility under the tested configuration, with an interesting reversal at $\sigma=2.0$. However, due to the lack of GPU compute in the current environment, a formal 3-seed robustness run to verify these effects statistically remains pending. The effect cannot be claimed as statistically supported until multi-seed replication is performed.
 
 **Google Colab T4 Validation:**
 To reproduce the validated GPU stack without `CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH` errors on Colab T4 instances:

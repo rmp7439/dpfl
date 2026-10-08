@@ -9,7 +9,7 @@
 - cumulative epsilon: VERIFIED
 - total DP steps: 3045
 - final epsilon: 2.6974
-- final accuracy: 26.06%
-- best accuracy: 26.06% at Round 15
+- final accuracy: 26.11%
+- best accuracy: 27.29% at Round 14
 - multi-seed robustness: OPTIONAL FUTURE RESEARCH
 - technical report update: COMPLETE
