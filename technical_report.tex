@@ -98,7 +98,7 @@ We use a SimpleCNN designed explicitly for DP:
 
 \begin{itemize}
     \item \textbf{Clients}: 5
-    \item \textbf{Rounds}: 3
+    \item \textbf{Rounds}: 15
     \item \textbf{Local Epochs}: 1
     \item \textbf{Batch Size}: 64
     \item \textbf{Optimizer}: SGD, Learning Rate: 0.05
@@ -166,7 +166,7 @@ In the authoritative 15-round Stage 4 run ($\sigma=1.0, C=1.0$), a client perfor
 
 \section{Experimental Setup}
 
-Experiments were initially intended to run on a GPU environment (Tesla T4 via Colab) to overcome Ray compatibility issues on Windows and accelerate Opacus's computationally expensive per-sample gradient hooks. However, empirical analysis of the generated execution artifacts (e.g., `results/stage4/summary.json`) confirms that the authoritative 15-round Stage 4 run, as well as the Stage 2 and Stage 3 baselines, actually executed on a CPU device (`"device": "cpu", "GPU": "None"`). Consequently, the substantial recorded runtimes (such as Stage 4's ~1784.72 seconds, which conflicts with an outer-wrapper `runtime.json` timestamp of ~721.84 seconds, likely due to nested timing scopes) reflect CPU-bound performance. Stage 5 full grid results, by contrast, indicate they successfully leveraged CUDA (`"device": "cuda"`). We report the actual execution hardware as recorded in the provenance artifacts rather than the planned configuration.
+Experiments were initially intended to run on a GPU environment (Tesla T4 via Colab) to overcome Ray compatibility issues on Windows and accelerate Opacus's computationally expensive per-sample gradient hooks. However, empirical analysis of the generated execution artifacts (e.g., `results/stage4/summary.json`) confirms that the authoritative 15-round Stage 4 run, as well as the Stage 2 and Stage 3 baselines and the authoritative fixed Stage 5 grid, actually executed on a CPU device (`"device": "cpu", "GPU": "None"`). Consequently, the substantial recorded runtimes (such as Stage 4's ~1784.72 seconds, which conflicts with an outer-wrapper `runtime.json` timestamp of ~721.84 seconds, likely due to nested timing scopes) reflect CPU-bound performance. We report the actual execution hardware as recorded in the provenance artifacts rather than the planned configuration.
 
 \section{Results}
 
@@ -260,6 +260,8 @@ We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\si
     \caption{Stage 6 privacy-analysis summary (15 rounds).}
     \label{tab:stage6_eps}
 \end{table}
+
+The $\alpha=10, \sigma=2$ cell uses seed 44; the other three Stage 6 ablation cells use seed 42.
 
 \begin{itemize}
     \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 31.51\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 24.41\%.
