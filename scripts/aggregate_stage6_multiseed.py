@@ -46,12 +46,8 @@ def main():
         best_alphas = [r.get("best_alpha") for r in runs if r.get("best_alpha") is not None]
         
         # epsilon and best_alpha handling
-        epsilon_val = epsilons[0] if epsilons else None
-        if epsilons and len(set(epsilons)) > 1:
-            epsilon_val = {
-                "mean": float(np.mean(epsilons)),
-                "std": float(np.std(epsilons))
-            }
+        eps_mean = float(np.mean(epsilons)) if epsilons else None
+        eps_std = float(np.std(epsilons)) if epsilons else 0.0
             
         best_alpha_val = best_alphas[0] if best_alphas else None
         if best_alphas and len(set(best_alphas)) > 1:
@@ -75,7 +71,8 @@ def main():
             "final_test_accuracy_std": float(np.std(final_accs)),
             "best_test_accuracy_mean": float(np.mean(best_accs)),
             "best_test_accuracy_std": float(np.std(best_accs)),
-            "epsilon": epsilon_val,
+            "epsilon_mean": eps_mean,
+            "epsilon_std": eps_std,
             "best_alpha": best_alpha_val,
             "number_of_communication_rounds": rounds_list[0] if len(rounds_list) == 1 else rounds_list,
             "dataset_mode": dataset_modes[0] if len(dataset_modes) == 1 else dataset_modes
@@ -87,7 +84,15 @@ def main():
     with open(out_file, "w") as f:
         json.dump(aggregate_results, f, indent=4)
         
-    print(f"Aggregation complete. Processed {len(all_runs)} runs. Results saved to {out_file}")
+    csv_file = os.path.join(base_dir, "aggregate.csv")
+    import csv
+    with open(csv_file, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["alpha", "sigma", "C", "n_seeds", "accuracy_mean", "accuracy_std", "epsilon_mean", "epsilon_std"])
+        for r in aggregate_results:
+            writer.writerow([r["alpha"], r["sigma"], r["C"], r["num_runs"], r["final_test_accuracy_mean"], r["final_test_accuracy_std"], r.get("epsilon_mean", ""), r.get("epsilon_std", "")])
+        
+    print(f"Aggregation complete. Processed {len(all_runs)} runs. Results saved to {out_file} and {csv_file}")
 
 if __name__ == "__main__":
     main()

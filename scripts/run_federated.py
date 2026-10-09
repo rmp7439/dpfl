@@ -543,8 +543,7 @@ def main():
         final_epsilon = round_stats[-1]["global_epsilon"] if round_stats else 0
         final_best_alpha = round_stats[-1]["best_alpha"] if round_stats else 0
         total_steps = max(client_cumulative_steps.values()) if client_cumulative_steps else 0
-        max_sample_rate = max([round_stats[-1]["client_details"][cid]["sample_rate"] for cid in client_cumulative_steps]) if round_stats else 0
-        
+        max_sample_rate = max([round_stats[-1]["client_details"][cid]["sample_rate"] for cid in client_cumulative_steps if cid in round_stats[-1]["client_details"]]) if round_stats else 0
         out_dir = args.output_dir or "results/stage4"
         os.makedirs(out_dir, exist_ok=True)
         prefix = f"dp_{mode}"

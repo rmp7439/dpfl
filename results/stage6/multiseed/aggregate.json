@@ -1,0 +1,98 @@
+[
+    {
+        "alpha": 0.1,
+        "sigma": 1.0,
+        "C": 1.0,
+        "delta": 1e-05,
+        "seeds": [
+            42,
+            43,
+            44
+        ],
+        "num_runs": 3,
+        "final_test_accuracy_mean": 18.66333333333333,
+        "final_test_accuracy_std": 0.7581703121477538,
+        "best_test_accuracy_mean": 18.66333333333333,
+        "best_test_accuracy_std": 0.7581703121477538,
+        "epsilon_mean": 1.5171305304481466,
+        "epsilon_std": 0.01759450458807441,
+        "best_alpha": {
+            "mean": 8.233333333333333,
+            "std": 0.04714045207910384
+        },
+        "number_of_communication_rounds": 3,
+        "dataset_mode": "full"
+    },
+    {
+        "alpha": 0.1,
+        "sigma": 2.0,
+        "C": 1.0,
+        "delta": 1e-05,
+        "seeds": [
+            42,
+            43,
+            44
+        ],
+        "num_runs": 3,
+        "final_test_accuracy_mean": 10.956666666666669,
+        "final_test_accuracy_std": 0.8748841193107937,
+        "best_test_accuracy_mean": 11.156666666666668,
+        "best_test_accuracy_std": 0.6890250761442254,
+        "epsilon_mean": 0.37119886134982205,
+        "epsilon_std": 0.024582373084347114,
+        "best_alpha": {
+            "mean": 34.333333333333336,
+            "std": 0.4714045207910317
+        },
+        "number_of_communication_rounds": 3,
+        "dataset_mode": "full"
+    },
+    {
+        "alpha": 10.0,
+        "sigma": 1.0,
+        "C": 1.0,
+        "delta": 1e-05,
+        "seeds": [
+            42,
+            43,
+            44
+        ],
+        "num_runs": 3,
+        "final_test_accuracy_mean": 17.876666666666665,
+        "final_test_accuracy_std": 1.929876219404297,
+        "best_test_accuracy_mean": 18.136666666666667,
+        "best_test_accuracy_std": 2.2279487327035956,
+        "epsilon_mean": 1.2353723354116837,
+        "epsilon_std": 0.017472861313299733,
+        "best_alpha": {
+            "mean": 9.299999999999999,
+            "std": 0.08164965809277304
+        },
+        "number_of_communication_rounds": 3,
+        "dataset_mode": "full"
+    },
+    {
+        "alpha": 10.0,
+        "sigma": 2.0,
+        "C": 1.0,
+        "delta": 1e-05,
+        "seeds": [
+            42,
+            43,
+            44
+        ],
+        "num_runs": 3,
+        "final_test_accuracy_mean": 9.770000000000001,
+        "final_test_accuracy_std": 0.5598214000911361,
+        "best_test_accuracy_mean": 10.96,
+        "best_test_accuracy_std": 0.9839037893344382,
+        "epsilon_mean": 0.3072593998684686,
+        "epsilon_std": 0.010893279652784561,
+        "best_alpha": {
+            "mean": 38.666666666666664,
+            "std": 0.4714045207910317
+        },
+        "number_of_communication_rounds": 3,
+        "dataset_mode": "full"
+    }
+]

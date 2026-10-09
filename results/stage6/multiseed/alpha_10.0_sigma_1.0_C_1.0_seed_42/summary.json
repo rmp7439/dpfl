@@ -1,0 +1,38 @@
+{
+    "dataset_mode": "full",
+    "num_train_samples": 50000,
+    "number_of_test_samples": 10000,
+    "num_clients": 5,
+    "alpha": 10.0,
+    "sigma": 1.0,
+    "C": 1.0,
+    "delta": 1e-05,
+    "sample_rate": 0.007194244604316547,
+    "total_dp_steps": 480,
+    "batch_size": 64,
+    "local_epochs": 1,
+    "optimizer": "SGD",
+    "learning_rate": 0.05,
+    "model": "SimpleCNN",
+    "device": "cpu",
+    "GPU": "None",
+    "number_of_communication_rounds": 3,
+    "seed": 42,
+    "per_round_test_accuracy": [
+        15.18,
+        20.78,
+        20.0
+    ],
+    "per_round_train_loss": [
+        2.3209731678650556,
+        2.2431692902343348,
+        2.2106558305775867
+    ],
+    "final_test_accuracy": 20.0,
+    "best_test_accuracy": 20.78,
+    "epsilon": 1.2594843281983104,
+    "best_alpha": 9.2,
+    "runtime_seconds": 414.75882601737976,
+    "run_status": "Success",
+    "timestamp": "2026-10-09T06:36:06.085130"
+}

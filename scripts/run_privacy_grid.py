@@ -23,7 +23,7 @@ def main():
     sigmas = STAGE5_SIGMAS
     Cs = STAGE5_C_VALUES
 
-    mode = "subset_validation" if args.subset else "full"
+    mode = "subset_validation" if args.subset else "full_15_rounds"
     grid_dir = os.path.join("results", "stage5", mode)
     base_out_dir = os.path.join(grid_dir, "per_run")
 
@@ -64,6 +64,7 @@ def main():
                 "--C", str(c),
                 "--output-dir", output_dir,
                 "--seed", str(args.seed),
+                "--rounds", "15",
             ]
             if not args.subset:
                 cmd.append("--full")

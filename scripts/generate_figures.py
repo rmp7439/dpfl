@@ -190,7 +190,8 @@ def main():
     print("Generating Figure 4: Stage 5 privacy-utility tradeoff")
     # FIGURE 4: Stage 5 tradeoff
     s5_runs = []
-    s5_per_run_dir = f"results/stage5/{mode_dir}/per_run"
+    s5_mode_dir = "full_15_rounds" if not is_subset else "subset_validation"
+    s5_per_run_dir = f"results/stage5/{s5_mode_dir}/per_run"
     if not is_subset and not os.path.exists(s5_per_run_dir):
         print(f"ERROR: Required full artifact {s5_per_run_dir} not found. Failing clearly.")
         sys.exit(1)
@@ -223,7 +224,7 @@ def main():
     print("Generating Figure 5 & 6: Stage 6 ablation")
     # FIGURE 5 & 6: Stage 6 ablation
     if not is_subset:
-        s6_file = "results/stage6/historical_reconstructed/ablation_results.json"
+        s6_file = "results/stage6/multiseed/aggregate.json"
     else:
         s6_file = "results/stage6/subset_validation/ablation_results.json"
         
@@ -239,9 +240,22 @@ def main():
         for d in s6_data:
             marker = 'o' if d['alpha'] == 0.1 else 's'
             color = 'blue' if d['sigma'] == 1.0 else 'red'
-            plt.scatter(d['epsilon'], d['final_test_accuracy'], 
-                       label=f"α={d['alpha']}, σ={d['sigma']}", 
-                       marker=marker, color=color, s=100)
+            
+            # Check if this is the new multiseed format or old subset format
+            if 'final_test_accuracy_mean' in d:
+                acc_mean = d['final_test_accuracy_mean']
+                acc_std = d.get('final_test_accuracy_std', 0.0)
+                eps_mean = d.get('epsilon_mean', d.get('epsilon', 0.0))
+                eps_std = d.get('epsilon_std', 0.0)
+                
+                plt.errorbar(eps_mean, acc_mean, xerr=eps_std, yerr=acc_std,
+                           label=f"α={d['alpha']}, σ={d['sigma']}", 
+                           marker=marker, color=color, markersize=10, capsize=5, linestyle='None')
+            else:
+                plt.scatter(d['epsilon'], d['final_test_accuracy'], 
+                           label=f"α={d['alpha']}, σ={d['sigma']}", 
+                           marker=marker, color=color, s=100)
+                
         plt.title(f"Stage 6 Alpha/Sigma Ablation{title_suffix}")
         plt.xlabel("Cumulative Epsilon ($\epsilon$)")
         plt.ylabel("Final Accuracy (%)")
@@ -261,9 +275,18 @@ def main():
         for d in s6_data:
             marker = 'o' if d['alpha'] == 0.1 else 's'
             color = 'blue' if d['sigma'] == 1.0 else 'red'
-            plt.scatter(d['epsilon'], d['final_test_accuracy'], 
-                       label=f"S6: α={d['alpha']}, σ={d['sigma']}", 
-                       marker=marker, color=color, s=100)
+            if 'final_test_accuracy_mean' in d:
+                acc_mean = d['final_test_accuracy_mean']
+                acc_std = d.get('final_test_accuracy_std', 0.0)
+                eps_mean = d.get('epsilon_mean', d.get('epsilon', 0.0))
+                eps_std = d.get('epsilon_std', 0.0)
+                plt.errorbar(eps_mean, acc_mean, xerr=eps_std, yerr=acc_std,
+                           label=f"S6: α={d['alpha']}, σ={d['sigma']}", 
+                           marker=marker, color=color, markersize=10, capsize=5, linestyle='None')
+            else:
+                plt.scatter(d['epsilon'], d['final_test_accuracy'], 
+                           label=f"S6: α={d['alpha']}, σ={d['sigma']}", 
+                           marker=marker, color=color, s=100)
         plt.title(f"Combined Privacy-Utility Tradeoff{title_suffix}")
         plt.xlabel("Cumulative Epsilon ($\epsilon$)")
         plt.ylabel("Final Accuracy (%)")
