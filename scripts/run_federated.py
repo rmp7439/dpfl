@@ -266,8 +266,34 @@ class CheckpointingFedAvg(fl.server.strategy.FedAvg):
     def __init__(self, run_config=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.run_config = run_config or {}
+        self.participation_history = []
         
     def aggregate_fit(self, server_round: int, results, failures):
+        expected_clients = self.run_config.get("num_clients", 5)
+        
+        if failures:
+            raise RuntimeError(f"Round {server_round} failed: {len(failures)} client(s) failed. Exiting to maintain exact client participation.")
+            
+        if len(results) != expected_clients:
+            raise RuntimeError(f"Round {server_round} failed: expected {expected_clients} clients, but got {len(results)}.")
+            
+        expected_cids = {str(i) for i in range(expected_clients)}
+        received_cids = set()
+        for _, fit_res in results:
+            if "client_id" in fit_res.metrics:
+                received_cids.add(str(fit_res.metrics["client_id"]))
+                
+        self.participation_history.append({
+            "round": server_round,
+            "expected_clients": list(expected_cids),
+            "actual_clients": list(received_cids),
+            "num_success": len(results),
+            "num_failures": len(failures) if failures else 0
+        })
+                
+        if received_cids != expected_cids:
+            raise RuntimeError(f"Round {server_round} failed: expected client IDs {expected_cids}, got {received_cids}")
+            
         aggregated_parameters, aggregated_metrics = super().aggregate_fit(server_round, results, failures)
         
         if aggregated_parameters is not None:
@@ -364,6 +390,7 @@ def main():
         fraction_evaluate=0.0,
         min_fit_clients=num_clients,
         min_available_clients=num_clients,
+        accept_failures=False,
         fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
         evaluate_fn=get_evaluate_fn(GLOBAL_TESTSET, device, run_config),
         run_config=run_config,
@@ -449,6 +476,7 @@ def main():
             "best_test_accuracy": max(acc_history) if acc_history else 0.0,
             "execution_status": "Success",
             "device": str(torch.device("cuda" if torch.cuda.is_available() else "cpu")),
+            "per_round_participation": strategy.participation_history,
             "timestamp": datetime.datetime.now().isoformat()
         }
         
@@ -517,18 +545,33 @@ def main():
                 client_rdp_state[cid] += rdp_increment
                 client_cumulative_steps[cid] += steps
                 
-                eps, best_alpha = get_privacy_spent(orders=alphas, rdp=client_rdp_state[cid], delta=1e-5)
-                round_epsilons[cid] = {
+            round_epsilons = {}
+            for cid in range(num_clients):
+                cid_str = str(cid)
+                eps, best_alpha = get_privacy_spent(orders=alphas, rdp=client_rdp_state[cid_str], delta=1e-5)
+                # find the sample rate and round steps for this client if it reported this round
+                q = 0.0
+                round_steps = 0
+                for c_stat in client_stats:
+                    if str(c_stat["client_id"]) == cid_str:
+                        q = float(c_stat["sample_rate"])
+                        round_steps = int(c_stat["dp_steps"])
+                        break
+                        
+                round_epsilons[cid_str] = {
                     "epsilon": eps, 
                     "best_alpha": best_alpha, 
-                    "cumulative_steps": client_cumulative_steps[cid], 
+                    "cumulative_steps": client_cumulative_steps[cid_str], 
                     "sample_rate": q, 
-                    "round_steps": steps
+                    "round_steps": round_steps
                 }
                 
             worst_client = max(round_epsilons.keys(), key=lambda k: round_epsilons[k]["epsilon"])
             worst_eps = round_epsilons[worst_client]["epsilon"]
             worst_alpha = round_epsilons[worst_client]["best_alpha"]
+            
+            if len(round_stats) > 0 and worst_eps < round_stats[-1]["global_epsilon"]:
+                raise RuntimeError(f"Epsilon decreased from {round_stats[-1]['global_epsilon']} to {worst_eps}, accounting error.")
             
             round_stats.append({
                 "round": round_num,
@@ -574,6 +617,8 @@ def main():
             "best_test_accuracy": max(acc_history) if acc_history else 0.0,
             "epsilon": final_epsilon,
             "best_alpha": final_best_alpha,
+            "client_details": round_stats[-1]["client_details"] if round_stats else {},
+            "per_round_participation": strategy.participation_history,
             "runtime_seconds": runtime,
             "run_status": "Success",
             "timestamp": datetime.datetime.now().isoformat()

@@ -190,8 +190,7 @@ def main():
     print("Generating Figure 4: Stage 5 privacy-utility tradeoff")
     # FIGURE 4: Stage 5 tradeoff
     s5_runs = []
-    s5_mode_dir = "full_15_rounds" if not is_subset else "subset_validation"
-    s5_per_run_dir = f"results/stage5/{s5_mode_dir}/per_run"
+    s5_per_run_dir = f"results/stage5/full_15_rounds_fixed_20261009_191553/per_run"
     if not is_subset and not os.path.exists(s5_per_run_dir):
         print(f"ERROR: Required full artifact {s5_per_run_dir} not found. Failing clearly.")
         sys.exit(1)
@@ -224,7 +223,7 @@ def main():
     print("Generating Figure 5 & 6: Stage 6 ablation")
     # FIGURE 5 & 6: Stage 6 ablation
     if not is_subset:
-        s6_file = "results/stage6/multiseed/aggregate.json"
+        s6_file = "results/stage6/multiseed_fixed_20261009_211429/ablation_results.json"
     else:
         s6_file = "results/stage6/subset_validation/ablation_results.json"
         

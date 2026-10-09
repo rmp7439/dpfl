@@ -176,9 +176,7 @@ Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs 
 
 \subsection{Non-private FedAvg (Stage 3)}
 
-Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 3 rounds severely degrades performance, resulting in \textbf{33.26\%} accuracy. Non-IID data causes local models to diverge sharply, making standard FedAvg aggregation suboptimal. 
-
-To isolate the degradation caused by non-IID federation from the degradation caused by Differential Privacy, we attempted a 15-round non-private FedAvg control ($\alpha=0.1$). Due to known Ray Virtual Client Engine stability issues on native Windows (access violations during simulation), the run crashed at Round 12. However, by Round 11, the non-private model had already achieved \textbf{42.83\%} accuracy, compared to the DP-FL model's peak of 27.29\% across 15 rounds. This confirms that while data heterogeneity significantly degrades the 74.87\% centralized baseline down to ~43\%, the injection of DP noise imposes an additional severe penalty.
+Federating the model across 5 clients with $\alpha=0.1$ (high skew) for a full 15 rounds without DP noise achieves \textbf{47.38\%} accuracy. This isolates the baseline performance of the standard FedAvg protocol under non-IID conditions. Comparing this to the centralized baseline (74.87\%) confirms that data heterogeneity severely degrades accuracy. The addition of DP noise (Stage 4) further penalizes utility.
 
 \subsection{DP-FL (Stage 4)}
 
@@ -212,8 +210,8 @@ We mapped the privacy-utility curve.
 \begin{itemize}
     \item Higher $\sigma$ decreases $\varepsilon$ (stronger privacy) but hurts accuracy.
     \item The impact of clipping norm $C$ is complex: while it does not impact the mathematical $\varepsilon$ directly, a lower $C=0.1$ can actually outperform $C=1.0$ at high noise levels (e.g., $\sigma=2.0$).
-    \item \textbf{Best Privacy}: $\sigma=2.0, C=0.1$ gives $\varepsilon=0.3989$ but accuracy drops to 19.54\%.
-    \item \textbf{Best Accuracy}: $\sigma=0.5, C=1.0$ gives 25.11\% accuracy but weak privacy ($\varepsilon=10.8698$).
+    \item \textbf{Best Privacy}: $\sigma=2.0, C=0.1$ gives $\varepsilon=0.9117$ but accuracy drops to 30.57\%.
+    \item \textbf{Best Accuracy}: $\sigma=0.5, C=1.0$ gives 36.49\% accuracy but weak privacy ($\varepsilon=19.0778$).
 \end{itemize}
 
 \begin{table}[h]
@@ -222,14 +220,14 @@ We mapped the privacy-utility curve.
         \hline
         $\sigma$ & $C$ & $\delta$ & Best RDP Order & $\varepsilon$ \\
         \hline
-        0.5 & 0.1 & $10^{-5}$ & 2.3 & 10.8698 \\
-        0.5 & 1.0 & $10^{-5}$ & 2.3 & 10.8698 \\
-        1.0 & 0.1 & $10^{-5}$ & 8.2 & 1.5394 \\
-        1.0 & 1.0 & $10^{-5}$ & 8.2 & 1.5394 \\
-        1.5 & 0.1 & $10^{-5}$ & 19.0 & 0.6354 \\
-        1.5 & 1.0 & $10^{-5}$ & 19.0 & 0.6354 \\
-        2.0 & 0.1 & $10^{-5}$ & 34.0 & 0.3989 \\
-        2.0 & 1.0 & $10^{-5}$ & 34.0 & 0.3989 \\
+        0.5 & 0.1 & $10^{-5}$ & 2.3 & 19.0778 \\
+        0.5 & 1.0 & $10^{-5}$ & 2.3 & 19.0778 \\
+        1.0 & 0.1 & $10^{-5}$ & 8.2 & 2.6974 \\
+        1.0 & 1.0 & $10^{-5}$ & 8.2 & 2.6974 \\
+        1.5 & 0.1 & $10^{-5}$ & 19.0 & 1.3436 \\
+        1.5 & 1.0 & $10^{-5}$ & 19.0 & 1.3436 \\
+        2.0 & 0.1 & $10^{-5}$ & 34.0 & 0.9117 \\
+        2.0 & 1.0 & $10^{-5}$ & 34.0 & 0.9117 \\
         \hline
     \end{tabular}
     \caption{Privacy-analysis summary covering all 8 Stage 5 full-data configurations.}
@@ -245,7 +243,7 @@ We mapped the privacy-utility curve.
 
 \subsection{Alpha Ablation (Stage 6)}
 
-We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\sigma \in \{1.0, 2.0\}$). Note: These results are reconstructed from historical execution logs rather than a fresh full-data rerun, due to a previous Colab runtime termination, but are rigorously preserved as authoritative evidence.
+We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\sigma \in \{1.0, 2.0\}$). These results are derived from complete 15-round full-CIFAR-10 authoritative runs.
 
 \begin{table}[h]
     \centering
@@ -253,26 +251,26 @@ We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\si
         \hline
         $\alpha$ (Heterogeneity) & $\sigma$ & $C$ & $\delta$ & Best Rényi Order & $\varepsilon$ & Final Accuracy \\
         \hline
-        0.1 & 1.0 & 1.0 & $10^{-5}$ & 8.2 & 1.5394 & 18.25\% \\
-        10.0 & 1.0 & 1.0 & $10^{-5}$ & 9.2 & 1.2595 & 22.33\% \\
-        0.1 & 2.0 & 1.0 & $10^{-5}$ & 34.0 & 0.3989 & 11.87\% \\
-        10.0 & 2.0 & 1.0 & $10^{-5}$ & 38.0 & 0.3133 & 10.10\% \\
+        0.1 & 1.0 & 1.0 & $10^{-5}$ & 8.2 & 2.6974 & 24.41\% \\
+        10.0 & 1.0 & 1.0 & $10^{-5}$ & 9.2 & 2.0691 & 31.51\% \\
+        0.1 & 2.0 & 1.0 & $10^{-5}$ & 34.0 & 0.9117 & 13.79\% \\
+        10.0 & 2.0 & 1.0 & $10^{-5}$ & 38.0 & 0.7271 & 15.26\% \\
         \hline
     \end{tabular}
-    \caption{Stage 6 privacy-analysis summary (reconstructed historical runs).}
+    \caption{Stage 6 privacy-analysis summary (15 rounds).}
     \label{tab:stage6_eps}
 \end{table}
 
 \begin{itemize}
-    \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 22.33\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 18.25\%. Under the tested configuration, the $\alpha=0.1$ condition exhibited lower observed utility than $\alpha=10.0$.
-    \item Interestingly, this ordering reverses at $\sigma=2.0$, where non-IID ($\alpha=0.1$) achieves 11.87\% compared to near-IID ($\alpha=10.0$) at 10.10\%.
-    \item Due to the lack of GPU compute in the current environment, a multi-seed robustness run to verify these effects statistically remains pending. We cannot claim a definitive compounding penalty caused by DP and data heterogeneity until multi-seed replication is performed.
+    \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 31.51\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 24.41\%.
+    \item At $\sigma=2.0$, near-IID data ($\alpha=10.0$) achieves 15.26\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 13.79\%.
+    \item The DP steps (sampling rates) differed implicitly due to Dirichlet partitioning creating unbalanced datasets, leading to varied $\varepsilon$ values despite identical configurations.
 \end{itemize}
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.8\textwidth]{figures/fig5_stage6_ablation.pdf}
-    \caption*{Stage 6 Alpha/Sigma Ablation results showing empirical associations. Note: reconstructed from historical artifacts.}
+    \caption*{Stage 6 Alpha/Sigma Ablation results showing empirical associations.}
     \label{fig:stage6_ablation}
 \end{figure}
 
@@ -294,7 +292,6 @@ The 15-round run provides empirical evidence of accuracy/privacy evolution over 
 \section{Limitations}
 
 \begin{enumerate}
-    \item \textbf{Rounds}: While Stage 4 ran for 15 rounds to study convergence, the Stage 5 and 6 grids were restricted to 3 communication rounds due to computational constraints.
     \item \textbf{Hyperparameters}: $\sigma$ and $C$ were grid-searched, but LR and momentum were frozen. DP-SGD typically requires specifically tuned learning rates.
     \item \textbf{Accounting Assumption}: We assumed perfect parallel composition; dynamic client dropout or overlapping data would require more complex accounting.
     \item \textbf{Secure RNG}: For experimentation, cryptographically secure RNG was disabled to boost speed; production requires it enabled.
@@ -302,7 +299,7 @@ The 15-round run provides empirical evidence of accuracy/privacy evolution over 
 
 \section{Reproducibility}
 
-The official protocol relies on Linux/Colab execution due to Ray compatibility limits on Windows. The repository contains all artifacts, split visualizations, and testing utilities. Due to a Colab runtime termination, the final structured artifacts for Stage 6 were lost, but the raw execution logs were preserved and rigorously archived to maintain experimental integrity without expending redundant GPU compute.
+The official protocol relies on Linux/Colab execution due to Ray compatibility limits on Windows. The repository contains all artifacts, split visualizations, and testing utilities. All experiments were conducted with full structured artifacts archived.
 
 \section{Conclusion}
 

@@ -1,0 +1,386 @@
+{
+    "dataset_mode": "full",
+    "num_train_samples": 50000,
+    "number_of_test_samples": 10000,
+    "num_clients": 5,
+    "alpha": 0.1,
+    "sigma": 2.0,
+    "C": 0.1,
+    "delta": 1e-05,
+    "sample_rate": 0.011363636363636364,
+    "total_dp_steps": 3045,
+    "batch_size": 64,
+    "local_epochs": 1,
+    "optimizer": "SGD",
+    "learning_rate": 0.05,
+    "model": "SimpleCNN",
+    "device": "cpu",
+    "GPU": "None",
+    "number_of_communication_rounds": 15,
+    "seed": 42,
+    "per_round_test_accuracy": [
+        10.1,
+        16.46,
+        21.18,
+        21.14,
+        22.71,
+        23.21,
+        24.99,
+        25.98,
+        27.21,
+        29.06,
+        28.55,
+        28.25,
+        29.17,
+        30.36,
+        30.57
+    ],
+    "per_round_train_loss": [
+        1.615359570043385,
+        1.6155756678852264,
+        1.5796675243856306,
+        1.5940777910367914,
+        1.539137659743425,
+        1.5691863144651506,
+        1.6018620377081185,
+        1.6544605925143276,
+        1.6887814981139218,
+        1.6741491430663544,
+        1.730263466196998,
+        1.7258927232230585,
+        1.7642761297769667,
+        1.7598983382922644,
+        1.7813635612726386
+    ],
+    "final_test_accuracy": 30.57,
+    "best_test_accuracy": 30.57,
+    "epsilon": 0.9116570397120956,
+    "best_alpha": 19.0,
+    "client_details": {
+        "0": {
+            "epsilon": 0.572775281566116,
+            "best_alpha": 28.0,
+            "cumulative_steps": 3045,
+            "sample_rate": 0.0049261083743842365,
+            "round_steps": 203
+        },
+        "1": {
+            "epsilon": 0.6423208349967676,
+            "best_alpha": 25.0,
+            "cumulative_steps": 2475,
+            "sample_rate": 0.006060606060606061,
+            "round_steps": 165
+        },
+        "2": {
+            "epsilon": 0.5993739602333029,
+            "best_alpha": 27.0,
+            "cumulative_steps": 2805,
+            "sample_rate": 0.0053475935828877,
+            "round_steps": 187
+        },
+        "3": {
+            "epsilon": 0.6982026224510763,
+            "best_alpha": 23.0,
+            "cumulative_steps": 2130,
+            "sample_rate": 0.007042253521126761,
+            "round_steps": 142
+        },
+        "4": {
+            "epsilon": 0.9116570397120956,
+            "best_alpha": 19.0,
+            "cumulative_steps": 1320,
+            "sample_rate": 0.011363636363636364,
+            "round_steps": 88
+        }
+    },
+    "per_round_participation": [
+        {
+            "round": 1,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 2,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 3,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 4,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 5,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 6,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 7,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 8,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 9,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 10,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 11,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 12,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 13,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 14,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        },
+        {
+            "round": 15,
+            "expected_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "actual_clients": [
+                "0",
+                "3",
+                "1",
+                "2",
+                "4"
+            ],
+            "num_success": 5,
+            "num_failures": 0
+        }
+    ],
+    "runtime_seconds": 612.9562962055206,
+    "run_status": "Success",
+    "timestamp": "2026-10-09T20:32:02.688848"
+}

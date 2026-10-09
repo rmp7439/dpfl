@@ -10,6 +10,7 @@ import json
 import csv
 import argparse
 import datetime
+from scripts.validate_artifact import validate_artifact
 
 
 def main():
@@ -24,7 +25,8 @@ def main():
     Cs = STAGE5_C_VALUES
 
     mode = "subset_validation" if args.subset else "full_15_rounds"
-    grid_dir = os.path.join("results", "stage5", mode)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    grid_dir = os.path.join("results", "stage5", f"{mode}_fixed_{timestamp}")
     base_out_dir = os.path.join(grid_dir, "per_run")
 
     os.makedirs(base_out_dir, exist_ok=True)
@@ -71,9 +73,27 @@ def main():
 
             try:
                 subprocess.run(cmd, check=True, env=env)
-            except subprocess.CalledProcessError as e:
-                print(f"ERROR: Run failed for sigma={s}, C={c}: {e}")
-                failed.append((s, c))
+                
+                # Immediate strict artifact validation
+                if not os.path.exists(summary_path):
+                    raise RuntimeError(f"Run completed but summary.json is missing at {summary_path}")
+                    
+                validate_artifact(summary_path, {
+                    "sigma": s,
+                    "C": c,
+                    "number_of_communication_rounds": 15,
+                    "num_clients": 5,
+                    "alpha": 0.1,
+                    "seed": args.seed,
+                    "delta": 1e-5
+                })
+                
+                print(f"--- config sigma={s}, C={c} verified successfully. ---")
+                
+            except Exception as e:
+                print(f"ERROR: Run or validation failed for sigma={s}, C={c}: {e}")
+                print(f"STOPPING THE GRID DUE TO FAILURE.")
+                sys.exit(1)
 
     # 2. Compile grid results
     print("\nCompiling Grid Results...")
