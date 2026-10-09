@@ -220,14 +220,14 @@ We mapped the privacy-utility curve.
         \hline
         $\sigma$ & $C$ & $\delta$ & Best RDP Order & $\varepsilon$ \\
         \hline
-        0.5 & 0.1 & $10^{-5}$ & 2.3 & 19.0778 \\
-        0.5 & 1.0 & $10^{-5}$ & 2.3 & 19.0778 \\
-        1.0 & 0.1 & $10^{-5}$ & 8.2 & 2.6974 \\
-        1.0 & 1.0 & $10^{-5}$ & 8.2 & 2.6974 \\
-        1.5 & 0.1 & $10^{-5}$ & 19.0 & 1.3436 \\
-        1.5 & 1.0 & $10^{-5}$ & 19.0 & 1.3436 \\
-        2.0 & 0.1 & $10^{-5}$ & 34.0 & 0.9117 \\
-        2.0 & 1.0 & $10^{-5}$ & 34.0 & 0.9117 \\
+        0.5 & 0.1 & $10^{-5}$ & 1.9 & 19.0778 \\
+        0.5 & 1.0 & $10^{-5}$ & 1.9 & 19.0778 \\
+        1.0 & 0.1 & $10^{-5}$ & 6.9 & 2.6974 \\
+        1.0 & 1.0 & $10^{-5}$ & 6.9 & 2.6974 \\
+        1.5 & 0.1 & $10^{-5}$ & 13.0 & 1.3436 \\
+        1.5 & 1.0 & $10^{-5}$ & 13.0 & 1.3436 \\
+        2.0 & 0.1 & $10^{-5}$ & 19.0 & 0.9117 \\
+        2.0 & 1.0 & $10^{-5}$ & 19.0 & 0.9117 \\
         \hline
     \end{tabular}
     \caption{Privacy-analysis summary covering all 8 Stage 5 full-data configurations.}
@@ -251,10 +251,10 @@ We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\si
         \hline
         $\alpha$ (Heterogeneity) & $\sigma$ & $C$ & $\delta$ & Best Rényi Order & $\varepsilon$ & Final Accuracy \\
         \hline
-        0.1 & 1.0 & 1.0 & $10^{-5}$ & 8.2 & 2.6974 & 24.41\% \\
-        10.0 & 1.0 & 1.0 & $10^{-5}$ & 9.2 & 2.0691 & 31.51\% \\
-        0.1 & 2.0 & 1.0 & $10^{-5}$ & 34.0 & 0.9117 & 13.79\% \\
-        10.0 & 2.0 & 1.0 & $10^{-5}$ & 38.0 & 0.7271 & 15.26\% \\
+        0.1 & 1.0 & 1.0 & $10^{-5}$ & 6.9 & 2.6974 & 24.41\% \\
+        10.0 & 1.0 & 1.0 & $10^{-5}$ & 8.3 & 2.0691 & 31.51\% \\
+        0.1 & 2.0 & 1.0 & $10^{-5}$ & 19.0 & 0.9117 & 13.79\% \\
+        10.0 & 2.0 & 1.0 & $10^{-5}$ & 23.0 & 0.7271 & 15.26\% \\
         \hline
     \end{tabular}
     \caption{Stage 6 privacy-analysis summary (15 rounds).}
@@ -265,6 +265,7 @@ We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\si
     \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 31.51\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 24.41\%.
     \item At $\sigma=2.0$, near-IID data ($\alpha=10.0$) achieves 15.26\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 13.79\%.
     \item The DP steps (sampling rates) differed implicitly due to Dirichlet partitioning creating unbalanced datasets, leading to varied $\varepsilon$ values despite identical configurations.
+    \item The planned $\alpha=10.0, \sigma=2.0$ seed-42 rerun was attempted but did not complete due to a native Windows Ray Virtual Client Engine memory-mapping failure at Round 8. It was excluded from all authoritative results.
 \end{itemize}
 
 \begin{figure}[h]
