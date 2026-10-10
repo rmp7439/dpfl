@@ -217,7 +217,7 @@ class TestStage6Multiseed(unittest.TestCase):
             self.assertIn('final_test_accuracy_std', d)
             self.assertIn('best_test_accuracy_mean', d)
             self.assertIn('best_test_accuracy_std', d)
-            self.assertIn('epsilon', d)
+            self.assertIn('epsilon_mean', d)
             self.assertIn('best_alpha', d)
 
 class TestStage3FedAvgControl(unittest.TestCase):

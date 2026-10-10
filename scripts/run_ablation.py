@@ -20,19 +20,17 @@ def main():
     args = parser.parse_args()
 
     mode = "subset_validation" if args.subset else "multiseed"
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    grid_dir = os.path.join("results", "stage6", f"{mode}_fixed_{timestamp}")
+    grid_dir = os.path.join("results", "stage6", f"{mode}_replication")
     base_out_dir = os.path.join(grid_dir, "per_run")
 
     os.makedirs(base_out_dir, exist_ok=True)
 
     # Specific intended reruns for Stage 6
-    configs = [
-        {"alpha": 0.1, "sigma": 1.0, "C": 1.0, "seed": 42},
-        {"alpha": 0.1, "sigma": 2.0, "C": 1.0, "seed": 42},
-        {"alpha": 10.0, "sigma": 1.0, "C": 1.0, "seed": 42},
-        {"alpha": 10.0, "sigma": 2.0, "C": 1.0, "seed": 44},
-    ]
+    configs = []
+    for a in [0.1, 10.0]:
+        for s in [1.0, 2.0]:
+            for seed in [42, 43, 44]:
+                configs.append({"alpha": a, "sigma": s, "C": 1.0, "seed": seed})
 
     expected_runs = len(configs)
 
@@ -63,6 +61,27 @@ def main():
         output_dir = os.path.join(base_out_dir, dir_name)
         os.makedirs(output_dir, exist_ok=True)
 
+        expected_clients = 5 if not args.subset else 3
+        summary_path = os.path.join(output_dir, "summary.json")
+        if os.path.exists(summary_path):
+            try:
+                validate_artifact(summary_path, {
+                    "sigma": s,
+                    "C": c_val,
+                    "number_of_communication_rounds": 15,
+                    "num_clients": expected_clients,
+                    "alpha": a,
+                    "seed": seed,
+                    "delta": 1e-5
+                })
+                print(f"--- config alpha={a}, sigma={s}, C={c_val}, seed={seed} already completed. Skipping. ---")
+                with open(summary_path) as f:
+                    all_results.append(json.load(f))
+                successful.append(cfg)
+                continue
+            except Exception as e:
+                print(f"Existing artifact invalid or incomplete, running again: {e}")
+
         cmd = [
             sys.executable, os.path.join(os.path.dirname(__file__), "run_federated.py"),
             "--enable-dp",
@@ -80,7 +99,6 @@ def main():
             subprocess.run(cmd, check=True, env=env)
             
             # Immediate strict artifact validation
-            summary_path = os.path.join(output_dir, "summary.json")
             if not os.path.exists(summary_path):
                 raise RuntimeError(f"Run completed but summary.json is missing at {summary_path}")
                 
@@ -88,7 +106,7 @@ def main():
                 "sigma": s,
                 "C": c_val,
                 "number_of_communication_rounds": 15,
-                "num_clients": 5,
+                "num_clients": expected_clients,
                 "alpha": a,
                 "seed": seed,
                 "delta": 1e-5

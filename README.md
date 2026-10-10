@@ -20,14 +20,18 @@ How severely does the strict bound of Differential Privacy degrade the classific
 
 ## Experimental protocol
 - **Dataset**: CIFAR-10 (50,000 train, 10,000 test)
-- **Clients**: 5
-- **Communication rounds**: 3
+- **Clients**: 5 (3 for quick validation/subset runs)
+- **Communication rounds**:
+  - Quick validation/subset runs: 2-3 rounds
+  - Historical experiments (Stage 6 legacy): 3 rounds
+  - Official full experiments (Stages 3, 4, 5): 15 rounds
+  - New replication experiments (Stage 6 multi-seed): 15 rounds
 - **Local epochs**: 1
 - **Batch size**: 64
 - **Federated Optimizer**: SGD, learning rate = 0.05
 - **Centralized Optimizer**: Adam, learning rate = 0.001
 - **Dirichlet $\alpha$**: 0.1 (unless ablated)
-- **Seed**: 42
+- **Seed**: 42 (42, 43, 44 for multi-seed replication)
 
 ## Repository structure
 ```text
@@ -120,16 +124,16 @@ Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 - **Stage 6 Homogeneous ($\alpha=10.0, \sigma=1.0$)**: 31.51%, $\varepsilon=2.0691$
 - **Stage 6 Heterogeneous ($\alpha=0.1, \sigma=1.0$)**: 24.41%, $\varepsilon=2.6974$
 
-*All reported values are from the project's official 15-round experimental runs.*
+*All reported values are from the project's official 15-round experimental runs. (Note: A new balanced 15-round multi-seed replication for Stage 6 is pending GPU availability).*
 
 ## Reproducibility
 The official experiments leverage deterministic seeds (seed=42). However, Ray-based multi-client simulation can introduce execution-level non-determinism. Opacus Secure RNG was disabled for execution speed, therefore the implementation is intended for experimental/research use rather than production privacy deployment.
 
 ## Hardware and Runtime Caveats
-While experiments were planned for a GPU environment to accelerate Opacus's per-sample gradient hooks, empirical analysis of the execution artifacts confirms that Stages 2, 3, and 4 were executed on a CPU. This is documented transparently in the final report. Stage 5 full grid results and Stage 6 ablations reflect CUDA execution where available.
+While experiments were planned for a GPU environment to accelerate Opacus's per-sample gradient hooks, empirical analysis of the execution artifacts confirms that Stages 2, 3, and 4 were executed on a CPU. This is documented transparently in the final report. Stage 5 full grid results and historical Stage 6 ablations reflect CUDA execution where available (e.g., historical Colab T4 runs).
 
 ## Stage 6 Robustness Status
-The Stage 6 ablation results indicate an empirical association between stronger data heterogeneity ($\alpha=0.1$) and lower observed utility under the tested configuration, requiring significantly more DP steps (e.g. 3045 vs 2475) due to specialized datasets shifting the batch sampling rate. A formal multi-seed robustness run to verify these effects statistically remains a future work opportunity.
+The historical Stage 6 ablation results indicate an empirical association between stronger data heterogeneity ($\alpha=0.1$) and lower observed utility under the tested configuration, requiring significantly more DP steps (e.g. 3045 vs 2475) due to specialized datasets shifting the batch sampling rate. A formal multi-seed robustness run with 15 rounds is planned to verify these effects statistically, but is currently **PENDING** due to GPU unavailability in the current local environment. All local runs are constrained to CPU, making a 12-seed 15-round Opacus execution prohibitively slow for immediate replication.
 
 **Google Colab T4 Validation:**
 To reproduce the validated GPU stack without `CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH` errors on Colab T4 instances:

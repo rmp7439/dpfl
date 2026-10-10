@@ -23,7 +23,7 @@
 [PASS] centralized baseline comparison exists
 [PASS] α=0.1 vs α=10 comparison exists
 [PASS] σ=2.0 comparison explicitly discussed
-[PENDING] Stage 6 robustness status explicitly documented (Pending GPU execution for multi-seed replication)
+[PENDING] Stage 6 robustness status explicitly documented (Pending GPU execution for multi-seed replication. Reproducible next step: run `python scripts/run_ablation.py` on a Linux/Colab environment with CUDA)
 [PASS] non-private 15-round FedAvg control status documented
 [PASS] baseline 74.87% caveat documented
 [PASS] LaTeX report compiles
