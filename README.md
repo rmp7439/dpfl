@@ -134,7 +134,7 @@ Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 - **Stage 6 15-Round Reference Runs**:
   - $\alpha=10.0, \sigma=1.0$ (seed 42): 31.51%, $\varepsilon=2.0691$
   - $\alpha=0.1, \sigma=1.0$ (seed 42): 24.41%, $\varepsilon=2.6974$
-  - $\alpha=10.0, \sigma=2.0$ (seed 44*): 15.26%, $\varepsilon=0.7271$ (*non-like-for-like comparison: seed 44 used due to Ray IPC worker memory failure on seed 42)
+  - $\alpha=10.0, \sigma=2.0$ (seed 44*): 15.26%, $\varepsilon=0.7271$ (*non-like-for-like comparison: seed 44 used due to Ray IPC worker crash on seed 42)
   - $\alpha=0.1, \sigma=2.0$ (seed 42): 13.79% (best: 18.95%), $\varepsilon=0.9117$
 - **Stage 6 Multi-Seed Robustness Grid ($N=3$, seeds 42, 43, 44, 3 rounds)**:
   - $\alpha=0.1, \sigma=1.0$: $18.66\% \pm 0.93\%$, $\varepsilon=1.5171 \pm 0.0215$
@@ -183,8 +183,36 @@ Across the 12 three-round multi-seed runs:
 
 ### 15-Round Reference Runs
 - **$\sigma=1.0$ Comparison**: At 15 rounds, seed 42 produced $24.41\%$ for $\alpha=0.1$ and $31.51\%$ for $\alpha=10.0$. This is an empirical observation from a single random seed (seed 42), not a general result.
-- **$\sigma=2.0$ Comparison**: At 15 rounds, the $\alpha=10.0$ run used seed 44 ($15.26\%$) while the $\alpha=0.1$ run used seed 42 ($13.79\%$). Because the seed 42 run for $\alpha=10.0$ encountered a Ray IPC worker memory failure at round 8 and required replacement with seed 44, this represents a non-like-for-like seed comparison. The utility difference cannot be attributed to data heterogeneity alone.
-- **Physical DP Step Counts**: Run summaries confirm that client 4 under $\alpha=0.1$ completed 3,045 DP steps (local dataset size 5,579, $q=0.01136$) compared to client 0 under $\alpha=10.0$ completing 2,475 DP steps (local dataset size 8,856, $q=0.00719$). These step counts measure physical update steps executed given batch size 64 and client partition size ($N_k$), explaining why privacy expenditure rates differed under fixed round counts without implying a causal accuracy effect.
+- **$\sigma=2.0$ Comparison**: At 15 rounds, the $\alpha=10.0$ run used seed 44 ($15.26\%$) while the $\alpha=0.1$ run used seed 42 ($13.79\%$). Because the seed 42 run for $\alpha=10.0$ encountered a Ray IPC worker crash and required replacement with seed 44, this represents a non-like-for-like seed comparison. The utility difference cannot be attributed to data heterogeneity alone.
+- **Physical DP Step Counts and Parallel Composition**: In our run summary artifacts, the top-level metric `total_dp_steps` records the maximum physical steps executed by any single client ($\max_k T_k$, belonging to the largest local partition), whereas the global privacy guarantee under parallel composition is governed by the worst-case privacy expenditure ($\varepsilon_{\text{global}} = \max_k \varepsilon_k$, belonging to the smallest local partition due to its higher sampling rate $q$). Specifically:
+  - For $\alpha=0.1$, the largest client (Client 0, 12,944 samples, $q=0.00493$) executed the maximum $\max_k T_k = 3,045$ steps ($\varepsilon_0 = 1.6808$), while the smallest client (Client 4, 5,579 samples, $q=0.01136$) executed $T_4 = 1,320$ steps but incurred the worst-case privacy bound $\varepsilon_{\text{global}} = \varepsilon_4 = 2.6974$ (minimizing order $\approx 6.9$).
+  - For $\alpha=10.0$, the largest client (Client 2, 10,553 samples, $q=0.00606$) executed the maximum $\max_k T_k = 2,475$ steps ($\varepsilon_2 = 1.8797$), while the smallest client (Client 0, 8,856 samples, $q=0.00719$) executed $T_0 = 2,085$ steps but incurred the worst-case privacy bound $\varepsilon_{\text{global}} = \varepsilon_0 = 2.0691$ (minimizing order $\approx 8.3$).
+
+#### Per-Client Accounting Breakdown ($\sigma=1.0, C=1.0, \text{seed}=42, 15\text{ rounds}$)
+
+**Configuration 1: Highly Heterogeneous ($\alpha=0.1$)**
+
+| Client ID | Samples ($n_k$) | Sample Rate ($q_k$) | DP Steps ($T_k$) | Epsilon ($\varepsilon_k$) | Rényi Order ($\alpha_{\text{RDP}}$) |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| 0 | 12,944 | 0.00493 | 3,045 | 1.6808 | 9.4 |
+| 1 | 10,514 | 0.00606 | 2,475 | 1.8797 | 8.8 |
+| 2 | 11,934 | 0.00535 | 2,805 | 1.7560 | 9.1 |
+| 3 | 9,029 | 0.00704 | 2,130 | 2.0442 | 8.4 |
+| 4 | 5,579 | 0.01136 | 1,320 | 2.6974 | 6.9 |
+
+*Note: Global privacy is determined by Client 4 ($\varepsilon_{\text{global}} = 2.6974$), while summary `total_dp_steps` records Client 0 ($T=3,045$).*
+
+**Configuration 2: Near-IID ($\alpha=10.0$)**
+
+| Client ID | Samples ($n_k$) | Sample Rate ($q_k$) | DP Steps ($T_k$) | Epsilon ($\varepsilon_k$) | Rényi Order ($\alpha_{\text{RDP}}$) |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| 0 | 8,856 | 0.00719 | 2,085 | 2.0691 | 8.3 |
+| 1 | 10,009 | 0.00637 | 2,355 | 1.9323 | 8.7 |
+| 2 | 10,553 | 0.00606 | 2,475 | 1.8797 | 8.8 |
+| 3 | 10,399 | 0.00613 | 2,445 | 1.8925 | 8.8 |
+| 4 | 10,183 | 0.00625 | 2,400 | 1.9120 | 8.7 |
+
+*Note: Global privacy is determined by Client 0 ($\varepsilon_{\text{global}} = 2.0691$), while summary `total_dp_steps` records Client 2 ($T=2,475$).*
 
 **Google Colab Environment Notes:**
 If executing in cloud GPU environments like Google Colab:

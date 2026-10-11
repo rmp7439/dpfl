@@ -171,7 +171,7 @@ Under the parallel composition theorem \cite{mcsherry2009}, if randomized mechan
     \varepsilon_{\text{global}} = \max_{k \in \{0, \dots, K-1\}} \varepsilon_k
 \end{equation}
 
-\textbf{Step Representation Clarification}: In our summary artifacts, the recorded \texttt{total\_dp\_steps} metric denotes the cumulative DP steps executed by the worst-case client ($\max_k T_k$, e.g., 3045 steps under $\alpha=0.1$), rather than the sum across all federated clients ($\sum_k T_k \approx 11,775$).
+\textbf{Step Representation Clarification}: In our summary artifacts, the recorded \texttt{total\_dp\_steps} metric denotes the maximum cumulative DP steps executed by any single client ($\max_k T_k$, corresponding to the largest client partition, e.g., 3,045 steps for Client 0 under $\alpha=0.1$), rather than the sum across all federated clients ($\sum_k T_k = 11,775$). Under parallel composition, the global privacy guarantee $\varepsilon_{\text{global}} = \max_k \varepsilon_k$ is governed instead by the smallest client partition due to its higher sampling rate $q$, rather than the client executing the maximum physical steps.
 
 \subsection{Experimental Application}
 
@@ -179,7 +179,7 @@ In our experiments, we fix $\delta = 10^{-5}$. The RDP accountant uses the actua
 
 \textbf{Concrete Example (Stage 4)}:
 
-In the authoritative 15-round Stage 4 run ($\sigma=1.0, C=1.0$), client 4 had the smallest local dataset, performing $T = 3045$ total DP steps with $q = 0.01136$. Evaluated at $\delta = 10^{-5}$, the Opacus accountant identified a minimizing Rényi order of $r = 6.9$, yielding a final worst-case global privacy guarantee of $\varepsilon = 2.6974$.
+In the authoritative 15-round Stage 4 run ($\sigma=1.0, C=1.0, \alpha=0.1$), client 4 held the smallest local dataset ($n_4 = 5,579$), executing $T_4 = 1,320$ DP steps ($88 \text{ steps/round} \times 15 \text{ rounds}$) with sample rate $q_4 = 1/88 \approx 0.01136$. Evaluated at $\delta = 10^{-5}$, the Opacus accountant identified a minimizing Rényi order of $\alpha_{\text{RDP}} \approx 6.9$, yielding the worst-case client privacy guarantee of $\varepsilon_4 = 2.6974$ (which defines the global privacy bound $\varepsilon_{\text{global}}$). By contrast, client 0 held the largest local dataset ($n_0 = 12,944$), executing $T_0 = 3,045$ DP steps ($203 \text{ steps/round} \times 15 \text{ rounds}$) with sample rate $q_0 = 1/203 \approx 0.00493$, resulting in $\varepsilon_0 = 1.6808$ (minimizing Rényi order $9.4$). Thus, the client executing the maximum physical DP steps does not incur the maximum privacy loss.
 
 \section{Experimental Setup}
 
@@ -286,9 +286,43 @@ The $\alpha=10.0, \sigma=2.0$ run uses seed 44; the other three Stage 6 15-round
 
 \begin{itemize}
     \item \textbf{$\sigma=1.0$ Comparison}: In the 15-round runs at $\sigma=1.0$, seed 42 produced 24.41\% for $\alpha=0.1$ and 31.51\% for $\alpha=10.0$. This is an empirical observation from a single seed (seed 42), not a general result.
-    \item \textbf{$\sigma=2.0$ Comparison}: In the 15-round runs at $\sigma=2.0$, the $\alpha=10.0$ run used seed 44 (15.26\%) while the $\alpha=0.1$ run used seed 42 (13.79\%). Because the seed 42 run for $\alpha=10.0$ encountered a Ray IPC memory-mapping failure at round 8 and required replacement with seed 44, this represents a non-like-for-like comparison across different random seeds. The observed accuracy difference cannot be attributed to data heterogeneity alone.
-    \item \textbf{Physical DP Step Counts}: Run summaries confirm that client 4 under $\alpha=0.1$ completed 3,045 DP steps (local dataset size 5,579, $q=0.01136$) compared to client 0 under $\alpha=10.0$ completing 2,475 DP steps (local dataset size 8,856, $q=0.00719$). These counts measure physical update steps executed given batch size 64 and client partition size ($N_k$), explaining why privacy expenditure rates differed under fixed round counts without implying a causal accuracy effect.
+    \item \textbf{$\sigma=2.0$ Comparison}: In the 15-round runs at $\sigma=2.0$, the $\alpha=10.0$ run used seed 44 (15.26\%) while the $\alpha=0.1$ run used seed 42 (13.79\%). Because the seed 42 run for $\alpha=10.0$ encountered a Ray IPC worker crash and required replacement with seed 44, this represents a non-like-for-like comparison across different random seeds. The observed accuracy difference cannot be attributed to data heterogeneity alone.
+    \item \textbf{Physical DP Step Counts and Parallel Composition}: Top-level run summaries report \texttt{total\_dp\_steps} as the maximum physical update steps executed by any single client ($\max_k T_k$, belonging to the client with the largest partition). Under parallel composition across disjoint client subsets, the global privacy guarantee $\varepsilon_{\text{global}} = \max_k \varepsilon_k$ is governed instead by the client with the smallest partition due to its higher sampling rate $q_k = 1 / \lceil n_k / 64 \rceil$. Tables~\ref{tab:stage6_clients_alpha01} and~\ref{tab:stage6_clients_alpha10} present the complete verified per-client accounting breakdown for $\sigma=1.0, C=1.0$ under $\alpha=0.1$ and $\alpha=10.0$.
 \end{itemize}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|c|}
+        \hline
+        Client $k$ & Samples $n_k$ & Sample Rate $q_k$ & Steps $T_k$ & $\varepsilon_k$ & Rényi Order \\
+        \hline
+        0 & 12,944 & 0.00493 & 3,045 & 1.6808 & 9.4 \\
+        1 & 10,514 & 0.00606 & 2,475 & 1.8797 & 8.8 \\
+        2 & 11,934 & 0.00535 & 2,805 & 1.7560 & 9.1 \\
+        3 & 9,029  & 0.00704 & 2,130 & 2.0442 & 8.4 \\
+        4 & 5,579  & 0.01136 & 1,320 & 2.6974 & 6.9 \\
+        \hline
+    \end{tabular}
+    \caption{Per-client accounting breakdown for $\alpha=0.1, \sigma=1.0, C=1.0$, seed 42 (15 rounds). Client 4 determines global privacy ($\varepsilon_{\text{global}}=2.6974$), while Client 0 executed the maximum physical steps ($\max_k T_k = 3,045$).}
+    \label{tab:stage6_clients_alpha01}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|c|}
+        \hline
+        Client $k$ & Samples $n_k$ & Sample Rate $q_k$ & Steps $T_k$ & $\varepsilon_k$ & Rényi Order \\
+        \hline
+        0 & 8,856  & 0.00719 & 2,085 & 2.0691 & 8.3 \\
+        1 & 10,009 & 0.00637 & 2,355 & 1.9323 & 8.7 \\
+        2 & 10,553 & 0.00606 & 2,475 & 1.8797 & 8.8 \\
+        3 & 10,399 & 0.00613 & 2,445 & 1.8925 & 8.8 \\
+        4 & 10,183 & 0.00625 & 2,400 & 1.9120 & 8.7 \\
+        \hline
+    \end{tabular}
+    \caption{Per-client accounting breakdown for $\alpha=10.0, \sigma=1.0, C=1.0$, seed 42 (15 rounds). Client 0 determines global privacy ($\varepsilon_{\text{global}}=2.0691$), while Client 2 executed the maximum physical steps ($\max_k T_k = 2,475$).}
+    \label{tab:stage6_clients_alpha10}
+\end{table}
 
 \subsection{Multi-Seed Robustness Evaluation}
 
