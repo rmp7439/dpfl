@@ -1,0 +1,19 @@
+{
+    "dataset_mode": "full",
+    "num_train_samples": 50000,
+    "number_of_training_samples": 50000,
+    "number_of_test_samples": 10000,
+    "seed": 42,
+    "tag": "rerun",
+    "model_name": "SimpleCNN+GroupNorm",
+    "optimizer": "Adam+CosineAnnealingLR",
+    "learning_rate": 0.001,
+    "batch_size": 64,
+    "number_of_epochs": 30,
+    "final_test_accuracy": 74.87,
+    "best_test_accuracy": 74.87,
+    "convergence_definition": "Best test accuracy achieved within 30 epochs",
+    "device": "cpu",
+    "runtime_seconds": 887.0596106052399,
+    "timestamp": "2026-10-11T15:51:22.484935"
+}

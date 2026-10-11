@@ -1,0 +1,26 @@
+{
+    "backup_timestamp": "20261011_153609",
+    "status": "VERIFIED_IDENTICAL",
+    "files": {
+        "original_json": {
+            "path": "c:\\Users\\newbi\\OneDrive\\Desktop\\dpfl\\results\\stage2\\baseline_full_seed42.json",
+            "size_bytes": 558,
+            "sha256": "688bf8aeaba4c9f6af761592445afef04abca2a19b02bdb216a33e50e982b8bd"
+        },
+        "original_csv": {
+            "path": "c:\\Users\\newbi\\OneDrive\\Desktop\\dpfl\\results\\stage2\\baseline_full_seed42.csv",
+            "size_bytes": 1675,
+            "sha256": "7e36e5a923fb3cb8b900b2db3327acbb326c3c505d7cab84e75930a2bed976c6"
+        },
+        "backup_json": {
+            "path": "c:\\Users\\newbi\\OneDrive\\Desktop\\dpfl\\results\\stage2\\backups\\baseline_reference_20261011_153609\\baseline_full_seed42.json",
+            "size_bytes": 558,
+            "sha256": "688bf8aeaba4c9f6af761592445afef04abca2a19b02bdb216a33e50e982b8bd"
+        },
+        "backup_csv": {
+            "path": "c:\\Users\\newbi\\OneDrive\\Desktop\\dpfl\\results\\stage2\\backups\\baseline_reference_20261011_153609\\baseline_full_seed42.csv",
+            "size_bytes": 1675,
+            "sha256": "7e36e5a923fb3cb8b900b2db3327acbb326c3c505d7cab84e75930a2bed976c6"
+        }
+    }
+}

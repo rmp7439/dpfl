@@ -1,0 +1,47 @@
+==============================================================================
+CENTRALIZED CIFAR-10 BASELINE REPRODUCIBILITY COMPARISON REPORT
+==============================================================================
+Timestamp:       2026-10-11T15:51:44.957425
+Classification:  EXACT_MATCH
+Tolerance:       0.0001
+Trajectory Match:True
+
+------------------------------------------------------------------------------
+INPUT ARTIFACTS AND CHECKSUMS
+------------------------------------------------------------------------------
+  ref_json    : results/stage2/baseline_full_seed42.json
+               SHA-256: 688bf8aeaba4c9f6af761592445afef04abca2a19b02bdb216a33e50e982b8bd
+               Size:    558 bytes
+  ref_csv     : results/stage2/baseline_full_seed42.csv
+               SHA-256: 7e36e5a923fb3cb8b900b2db3327acbb326c3c505d7cab84e75930a2bed976c6
+               Size:    1675 bytes
+  rerun_json  : results/stage2/baseline_full_seed42_rerun.json
+               SHA-256: 22aedc63c3ab1bb24026b3368ec902ca9b4f7bb15862e302982187453112ee6e
+               Size:    611 bytes
+  rerun_csv   : results/stage2/baseline_full_seed42_rerun.csv
+               SHA-256: 7e36e5a923fb3cb8b900b2db3327acbb326c3c505d7cab84e75930a2bed976c6
+               Size:    1675 bytes
+
+------------------------------------------------------------------------------
+SUMMARY METRICS COMPARISON
+------------------------------------------------------------------------------
+Metric                   Reference      Rerun          Abs Diff     Exact?   Units
+------------------------------------------------------------------------------
+final_test_accuracy      74.8700        74.8700        0.0000       YES      %
+best_test_accuracy       74.8700        74.8700        0.0000       YES      %
+number_of_epochs         30.0000        30.0000        0.0000       YES      epochs
+runtime_seconds          2487.7280      887.0596       1600.6684    NO       seconds
+final_train_loss         0.8597         0.8597         0.0000       YES      loss
+best_test_loss           0.7293         0.7293         0.0000       YES      loss
+
+------------------------------------------------------------------------------
+PER-EPOCH TRAJECTORY COMPARISON (CSV)
+------------------------------------------------------------------------------
+Metric         Max Abs Diff   At Epoch   Mean Abs Diff    RMSE         Exact?
+------------------------------------------------------------------------------
+train_loss     0.000000       Epoch 1    0.000000         0.000000     YES
+train_acc      0.000000       Epoch 1    0.000000         0.000000     YES
+test_loss      0.000000       Epoch 1    0.000000         0.000000     YES
+test_acc       0.000000       Epoch 1    0.000000         0.000000     YES
+
+==============================================================================
