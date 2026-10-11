@@ -42,14 +42,17 @@ These runs evaluate multi-seed stability across 3 random seeds ($N=3$) under ide
 
 ### 2.2 Three-Seed Statistical Aggregates ($N=3$)
 
-| $\alpha$ | $\sigma$ | $C$ | Seeds | Final Acc Mean (%) | Final Acc Sample Std | Best Acc Mean (%) | Best Acc Sample Std | Mean $\varepsilon$ | Sample Std $\varepsilon$ | Max Worst-Case $\varepsilon$ |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0.1 | 1.0 | 1.0 | 42, 43, 44 | 18.66 | $\pm 0.93$ | 18.66 | $\pm 0.93$ | 1.5171 | $\pm 0.0215$ | 1.5394 |
-| 0.1 | 2.0 | 1.0 | 42, 43, 44 | 10.96 | $\pm 1.07$ | 11.16 | $\pm 0.84$ | 0.3712 | $\pm 0.0301$ | 0.3918 |
-| 10.0 | 1.0 | 1.0 | 42, 43, 44 | 17.88 | $\pm 2.36$ | 18.14 | $\pm 2.73$ | 1.2354 | $\pm 0.0214$ | 1.2595 |
-| 10.0 | 2.0 | 1.0 | 42, 43, 44 | 9.77 | $\pm 0.69$ | 10.96 | $\pm 1.21$ | 0.3073 | $\pm 0.0133$ | 0.3216 |
+| $\alpha$ | $\sigma$ | $C$ | Seeds | Final Acc Mean (%) | Final Acc Sample Std ($s$, $\text{ddof}=1$) | Final Acc Pop Std ($\text{ddof}=0$) | Best Acc Mean (%) | Best Acc Sample Std ($s$, $\text{ddof}=1$) | Best Acc Pop Std ($\text{ddof}=0$) | Mean $\varepsilon$ | Sample Std $\varepsilon$ ($s$, $\text{ddof}=1$) | Pop Std $\varepsilon$ ($\text{ddof}=0$) | Max Worst-Case $\varepsilon$ |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0.1 | 1.0 | 1.0 | 42, 43, 44 | 18.66 | $\pm 0.93$ | $\pm 0.76$ | 18.66 | $\pm 0.93$ | $\pm 0.76$ | 1.5171 | $\pm 0.0215$ | $\pm 0.0176$ | 1.5394 |
+| 0.1 | 2.0 | 1.0 | 42, 43, 44 | 10.96 | $\pm 1.07$ | $\pm 0.87$ | 11.16 | $\pm 0.84$ | $\pm 0.69$ | 0.3712 | $\pm 0.0301$ | $\pm 0.0246$ | 0.3918 |
+| 10.0 | 1.0 | 1.0 | 42, 43, 44 | 17.88 | $\pm 2.36$ | $\pm 1.93$ | 18.14 | $\pm 2.73$ | $\pm 2.23$ | 1.2354 | $\pm 0.0214$ | $\pm 0.0175$ | 1.2595 |
+| 10.0 | 2.0 | 1.0 | 42, 43, 44 | 9.77 | $\pm 0.69$ | $\pm 0.56$ | 10.96 | $\pm 1.21$ | $\pm 0.98$ | 0.3073 | $\pm 0.0133$ | $\pm 0.0109$ | 0.3216 |
 
-*Statistical Note*: Per-run epsilons represent rigorous upper bounds on the individual sample differential privacy loss. The mean $\varepsilon$ is reported strictly as a descriptive summary of empirical accounting stability across partitions; it does **not** replace the worst-case bound $\max_s \varepsilon_s$, which serves as the formal privacy guarantee.
+*Statistical Note on Standard Deviation Reconciliation*:
+- **Documentation Reporting**: All main technical report tables and markdown summaries report **sample standard deviation** ($s$, computed with Bessel's correction $\text{ddof}=1$, dividing by $N-1=2$) to provide unbiased uncertainty estimates for small sample sizes ($N=3$).
+- **Automated Storage Files**: The automated pipeline outputs `results/stage6/multiseed/aggregate.csv` and `aggregate.json` record **population standard deviation** ($\text{ddof}=0$, dividing by $N=3$). Both representations are mathematically exact functions of the identical three seed measurements (42, 43, 44), related by the conversion factor $\sqrt{N/(N-1)} = \sqrt{3/2} \approx 1.2247$.
+- **Privacy Interpretation**: Per-run epsilons represent rigorous upper bounds on the individual sample differential privacy loss. The mean $\varepsilon$ is reported strictly as a descriptive summary of empirical accounting stability across partitions; it does **not** replace the worst-case bound $\max_s \varepsilon_s$, which serves as the formal privacy guarantee.
 
 ---
 

@@ -23,9 +23,8 @@ How severely does the strict bound of Differential Privacy degrade the classific
 - **Clients**: 5 (3 for quick validation/subset runs)
 - **Communication rounds**:
   - Quick validation/subset runs: 2-3 rounds
-  - Historical experiments (Stage 6 legacy): 3 rounds
-  - Official full experiments (Stages 3, 4, 5): 15 rounds
-  - New replication experiments (Stage 6 multi-seed): 15 rounds
+  - Official full experiments (Stages 3, 4, 5, and Stage 6 reference runs): 15 rounds
+  - Multi-seed robustness grid (Stage 6, 12 runs across 3 seeds): 3 rounds
 - **Local epochs**: 1
 - **Batch size**: 64
 - **Federated Optimizer**: SGD, learning rate = 0.05
@@ -124,15 +123,15 @@ Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 - **Stage 6 15-Round Reference Runs**:
   - $\alpha=10.0, \sigma=1.0$ (seed 42): 31.51%, $\varepsilon=2.0691$
   - $\alpha=0.1, \sigma=1.0$ (seed 42): 24.41%, $\varepsilon=2.6974$
-  - $\alpha=10.0, \sigma=2.0$ (seed 44*): 21.36%, $\varepsilon=0.8879$ (*seed 44 used due to Ray IPC worker crash on seed 42)
-  - $\alpha=0.1, \sigma=2.0$ (seed 42): 20.31%, $\varepsilon=1.0560$
-- **Stage 6 Multi-Seed Replication ($N=3$, seeds 42, 43, 44, 3 rounds)**:
-  - $\alpha=0.1, \sigma=1.0$: $19.26\% \pm 0.38\%$, $\varepsilon=0.8659$
-  - $\alpha=0.1, \sigma=2.0$: $16.94\% \pm 0.96\%$, $\varepsilon=0.4851$
-  - $\alpha=10.0, \sigma=1.0$: $22.69\% \pm 0.77\%$, $\varepsilon=0.7410$
-  - $\alpha=10.0, \sigma=2.0$: $19.53\% \pm 0.61\%$, $\varepsilon=0.4287$
+  - $\alpha=10.0, \sigma=2.0$ (seed 44*): 15.26%, $\varepsilon=0.7271$ (*seed 44 used due to Ray IPC worker crash on seed 42)
+  - $\alpha=0.1, \sigma=2.0$ (seed 42): 13.79% (best: 18.95%), $\varepsilon=0.9117$
+- **Stage 6 Multi-Seed Robustness Grid ($N=3$, seeds 42, 43, 44, 3 rounds)**:
+  - $\alpha=0.1, \sigma=1.0$: $18.66\% \pm 0.93\%$, $\varepsilon=1.5171$
+  - $\alpha=0.1, \sigma=2.0$: $10.96\% \pm 1.07\%$, $\varepsilon=0.3712$
+  - $\alpha=10.0, \sigma=1.0$: $17.88\% \pm 2.36\%$, $\varepsilon=1.2354$
+  - $\alpha=10.0, \sigma=2.0$: $9.77\% \pm 0.69\%$, $\varepsilon=0.3073$
 
-*Complete tabular details and per-run metrics are documented in [`results/stage6/STAGE6_SUMMARY.md`](results/stage6/STAGE6_SUMMARY.md).*
+*(All multi-seed uncertainty values reported in documentation denote sample standard deviation with Bessel's correction, $s$ with $\text{ddof}=1$; the automated storage files `aggregate.csv` and `aggregate.json` record population standard deviation with $\text{ddof}=0$; complete tabular details and side-by-side reconciliation are documented in [`results/stage6/STAGE6_SUMMARY.md`](results/stage6/STAGE6_SUMMARY.md)).*
 
 ## Reproducibility
 The official experiments leverage deterministic seeds (seed=42 for baseline/Stage 4/5; seeds 42, 43, 44 for multi-seed replication). However, Ray-based multi-client simulation can introduce execution-level non-determinism. Opacus Secure RNG was disabled for execution speed, therefore the implementation is intended for experimental/research use rather than production privacy deployment.

@@ -351,7 +351,7 @@ def main():
             color = '#1D3557' if d['sigma'] == 1.0 else '#E63946'
             seed_label = f" (seed {d['seed']})" if 'seed' in d else ""
             plt.scatter(d['epsilon'], d['final_test_accuracy'], 
-                        label=f"Stage 6: α={d['alpha']}, σ={d['sigma']}{seed_label}", 
+                        label=f"Stage 6 (15 rounds): α={d['alpha']}, σ={d['sigma']}{seed_label}", 
                         marker=marker, color=color, s=110, edgecolors='black', linewidth=1.0)
         plt.title(f"Combined Privacy-Utility Tradeoff across Stages 5 and 6{title_suffix}")
         plt.xlabel(r"Cumulative Epsilon ($\epsilon$)")
