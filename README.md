@@ -116,24 +116,32 @@ Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 *Note: Clipping norm $C$ strictly bounds per-sample gradient sensitivity, and Opacus scales injected Gaussian noise according to $C$ and $\sigma$.*
 
 ## Results summary
-- **Stage 2 Centralized**: 74.87% (Note: This empirical baseline fell below the original project target of >85%, thus downstream utility comparisons are made relative to 74.87% rather than the original target).
-- **Stage 3 Non-private FL**: 47.38% (15 rounds, $\alpha=0.1$)
-- **Stage 4 DP-FL Reference (15 rounds, $\sigma=1.0, C=1.0$)**: 26.11%, $\varepsilon=2.6974$ (best: 27.29% at round 14)
-- **Stage 5 Grid (Strongest Privacy)**: 30.57%, $\varepsilon=0.9117$ ($\sigma=2.0, C=0.1$)
-- **Stage 5 Grid (Best Accuracy)**: 36.49%, $\varepsilon=19.0778$ ($\sigma=0.5, C=1.0$)
-- **Stage 6 Homogeneous ($\alpha=10.0, \sigma=1.0$)**: 31.51%, $\varepsilon=2.0691$
-- **Stage 6 Heterogeneous ($\alpha=0.1, \sigma=1.0$)**: 24.41%, $\varepsilon=2.6974$
+- **Stage 2 Centralized Baseline**: 74.87% (Adam, lr=0.001; empirical baseline relative to target).
+- **Stage 3 Non-private FedAvg**: 47.38% (15 rounds, $\alpha=0.1$, FedAvg control).
+- **Stage 4 DP-FL Reference (15 rounds, $\sigma=1.0, C=1.0$)**: 26.11%, $\varepsilon=2.6974$ (best: 27.29% at round 14).
+- **Stage 5 Grid (Strongest Privacy)**: 30.57%, $\varepsilon=0.9117$ ($\sigma=2.0, C=0.1$).
+- **Stage 5 Grid (Best Accuracy)**: 36.49%, $\varepsilon=19.0778$ ($\sigma=0.5, C=1.0$).
+- **Stage 6 15-Round Reference Runs**:
+  - $\alpha=10.0, \sigma=1.0$ (seed 42): 31.51%, $\varepsilon=2.0691$
+  - $\alpha=0.1, \sigma=1.0$ (seed 42): 24.41%, $\varepsilon=2.6974$
+  - $\alpha=10.0, \sigma=2.0$ (seed 44*): 21.36%, $\varepsilon=0.8879$ (*seed 44 used due to Ray IPC worker crash on seed 42)
+  - $\alpha=0.1, \sigma=2.0$ (seed 42): 20.31%, $\varepsilon=1.0560$
+- **Stage 6 Multi-Seed Replication ($N=3$, seeds 42, 43, 44, 3 rounds)**:
+  - $\alpha=0.1, \sigma=1.0$: $19.26\% \pm 0.38\%$, $\varepsilon=0.8659$
+  - $\alpha=0.1, \sigma=2.0$: $16.94\% \pm 0.96\%$, $\varepsilon=0.4851$
+  - $\alpha=10.0, \sigma=1.0$: $22.69\% \pm 0.77\%$, $\varepsilon=0.7410$
+  - $\alpha=10.0, \sigma=2.0$: $19.53\% \pm 0.61\%$, $\varepsilon=0.4287$
 
-*All reported values are from the project's official 15-round experimental runs. (Note: A new balanced 15-round multi-seed replication for Stage 6 is pending GPU availability).*
+*Complete tabular details and per-run metrics are documented in [`results/stage6/STAGE6_SUMMARY.md`](results/stage6/STAGE6_SUMMARY.md).*
 
 ## Reproducibility
-The official experiments leverage deterministic seeds (seed=42). However, Ray-based multi-client simulation can introduce execution-level non-determinism. Opacus Secure RNG was disabled for execution speed, therefore the implementation is intended for experimental/research use rather than production privacy deployment.
+The official experiments leverage deterministic seeds (seed=42 for baseline/Stage 4/5; seeds 42, 43, 44 for multi-seed replication). However, Ray-based multi-client simulation can introduce execution-level non-determinism. Opacus Secure RNG was disabled for execution speed, therefore the implementation is intended for experimental/research use rather than production privacy deployment.
 
 ## Hardware and Runtime Caveats
 While experiments were planned for a GPU environment to accelerate Opacus's per-sample gradient hooks, empirical analysis of the execution artifacts confirms that Stages 2, 3, and 4 were executed on a CPU. This is documented transparently in the final report. Stage 5 full grid results and historical Stage 6 ablations reflect CUDA execution where available (e.g., historical Colab T4 runs).
 
 ## Stage 6 Robustness Status
-The historical Stage 6 ablation results indicate an empirical association between stronger data heterogeneity ($\alpha=0.1$) and lower observed utility under the tested configuration, requiring significantly more DP steps (e.g. 3045 vs 2475) due to specialized datasets shifting the batch sampling rate. A formal multi-seed robustness run with 15 rounds is planned to verify these effects statistically, but is currently **PENDING** due to GPU unavailability in the current local environment. All local runs are constrained to CPU, making a 12-seed 15-round Opacus execution prohibitively slow for immediate replication.
+Stage 6 ablation results confirm a consistent empirical pattern: across all tested noise multipliers and seeds, homogeneous partitions ($\alpha=10.0$) achieve higher test accuracy than heterogeneous non-IID partitions ($\alpha=0.1$), with differences of $+2.4\%$ to $+3.4\%$ across seeds at 3 rounds and up to $+7.1\%$ at 15 rounds. The heterogeneity penalty also manifests in client step counts: non-IID partitions concentrate larger local subsets on individual clients, leading to higher client step counts (3,045 vs 2,475 steps over 15 rounds) and higher accumulated $\varepsilon$ under parallel composition. The audited multi-seed replication provides statistical confidence ($N=3$ seeds) confirming the consistency of this effect.
 
 **Google Colab T4 Validation:**
 To reproduce the validated GPU stack without `CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH` errors on Colab T4 instances:

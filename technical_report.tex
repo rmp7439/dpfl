@@ -130,14 +130,16 @@ We explicitly define the parameters of the privacy accountant:
 
 \subsection{Per-Step Subsampled Gaussian Mechanism}
 
-At each training step, the dataloader draws a batch with sampling rate $q$. Opacus computes the per-sample gradients and clips them to a maximum $L_2$ norm $C$. It then adds Gaussian noise with standard deviation $\sigma C$ to the batch-averaged gradient. Note that while $C$ determines the absolute sensitivity and noise scale added to the gradients, it does not appear directly in the privacy accountant's $\varepsilon$ calculation because the $\sigma$ provided to Opacus already defines the noise multiplier relative to the sensitivity (i.e., noise standard deviation is $\sigma C$, so the ratio of noise to sensitivity is simply $\sigma$).
+At each training step, the dataloader draws a batch with sampling rate $q = B / N_k$, where $B=64$ is the batch size and $N_k$ is the local client dataset size. Opacus computes the per-sample gradients and clips them to a maximum $L_2$ norm $C$. It then adds Gaussian noise with standard deviation $\sigma C$ to the batch-averaged gradient. Note that while $C$ determines the absolute sensitivity and noise scale added to the gradients, it does not appear directly in the privacy accountant's $\varepsilon$ calculation because the $\sigma$ provided to Opacus already defines the noise multiplier relative to the sensitivity (i.e., noise standard deviation is $\sigma C$, so the ratio of noise to sensitivity is simply $\sigma$).
+
+\textbf{Sampling Assumption}: The analytical computation via Opacus \texttt{compute\_rdp} assumes Poisson subsampling with parameter $q$. In our federated client execution, batches are partitioned over local epochs without replacement. While this Poisson approximation is standard across empirical DP-SGD benchmarking, exact without-replacement privacy amplification possesses slightly different properties in finite datasets.
 
 \subsection{Rényi Differential Privacy (RDP) Composition}
 
-For a single DP-SGD step, the privacy loss is quantified by the RDP of order $\alpha$, denoted as $\text{RDP}_{\text{step}}(\alpha, q, \sigma)$. Because we assume sequential composition over the DP steps performed by a single client, for $T$ total local steps, the accumulated RDP is:
+For a single DP-SGD step, the privacy loss is quantified by the RDP of order $\alpha$, denoted as $\text{RDP}_{\text{step}}(\alpha, q, \sigma)$. Because each client performs local updates sequentially across communication rounds, by the linear additivity of RDP under sequential composition, the accumulated RDP for client $k$ performing $T_k$ total local steps is:
 
 \begin{equation}
-    \text{RDP}_T(\alpha) = T \cdot \text{RDP}_{\text{step}}(\alpha, q, \sigma)
+    \text{RDP}_{T_k}(\alpha) = T_k \cdot \text{RDP}_{\text{step}}(\alpha, q_k, \sigma)
 \end{equation}
 
 \subsection{Conversion to $(\varepsilon, \delta)$-DP}
@@ -145,16 +147,24 @@ For a single DP-SGD step, the privacy loss is quantified by the RDP of order $\a
 The cumulative RDP is converted back to standard $(\varepsilon, \delta)$-DP. We use the exact conversion formula implemented by the Opacus accountant, which is based on the optimal conversion theorem \cite{balle2020}:
 
 \begin{equation}
-    \varepsilon_\alpha(\delta) = \text{RDP}_T(\alpha) - \frac{\log \delta + \log \alpha}{\alpha - 1} + \log\left(\frac{\alpha - 1}{\alpha}\right)
+    \varepsilon_\alpha(\delta) = \text{RDP}_{T_k}(\alpha) - \frac{\log \delta + \log \alpha}{\alpha - 1} + \log\left(\frac{\alpha - 1}{\alpha}\right)
 \end{equation}
 
-The reported $\varepsilon$ for the client is the minimum over all evaluated Rényi orders $\alpha$:
+The reported $\varepsilon_k$ for client $k$ is the minimum over all evaluated Rényi orders $\alpha$:
 
 \begin{equation}
-    \varepsilon = \min_\alpha \varepsilon_\alpha(\delta)
+    \varepsilon_k = \min_\alpha \varepsilon_\alpha(\delta)
 \end{equation}
 
-Finally, under the parallel composition assumption for disjoint client datasets, the global reported epsilon is simply $\max(\varepsilon_{\text{clients}})$.
+\subsection{Parallel Composition & Global Privacy Guarantee}
+
+Under the parallel composition theorem \cite{mcsherry2009}, if randomized mechanisms operate on pairwise disjoint subsets of a global dataset, the overall release satisfies $(\max_k \varepsilon_k, \max_k \delta_k)$-DP for any individual sample. Because our Dirichlet partition allocates each CIFAR-10 training image exclusively to a single client $k$, an individual image participates solely in client $k$'s local updates. The global privacy guarantee is therefore strictly bounded by the worst-case client:
+
+\begin{equation}
+    \varepsilon_{\text{global}} = \max_{k \in \{0, \dots, K-1\}} \varepsilon_k
+\end{equation}
+
+\textbf{Step Representation Clarification}: In our summary artifacts, the recorded \texttt{total\_dp\_steps} metric denotes the cumulative DP steps executed by the worst-case client ($\max_k T_k$, e.g., 3045 steps under $\alpha=0.1$), rather than the sum across all federated clients ($\sum_k T_k \approx 11,775$).
 
 \subsection{Experimental Application}
 
@@ -162,7 +172,7 @@ In our experiments, we fix $\delta = 10^{-5}$. The RDP accountant uses the actua
 
 \textbf{Concrete Example (Stage 4)}:
 
-In the authoritative 15-round Stage 4 run ($\sigma=1.0, C=1.0$), a client performed $T = 3045$ total DP steps. Evaluated at $\delta = 10^{-5}$, the Opacus accountant identified a minimizing Rényi order of $r = 6.9$, yielding a final worst-case global privacy guarantee of $\varepsilon = 2.6974$.
+In the authoritative 15-round Stage 4 run ($\sigma=1.0, C=1.0$), client 4 had the smallest local dataset, performing $T = 3045$ total DP steps with $q = 0.01136$. Evaluated at $\delta = 10^{-5}$, the Opacus accountant identified a minimizing Rényi order of $r = 6.9$, yielding a final worst-case global privacy guarantee of $\varepsilon = 2.6974$.
 
 \section{Experimental Setup}
 
@@ -264,23 +274,59 @@ We varied the data heterogeneity $\alpha \in \{0.1, 10.0\}$ while using DP ($\si
 The $\alpha=10, \sigma=2$ cell uses seed 44; the other three Stage 6 ablation cells use seed 42.
 
 \begin{itemize}
-    \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 31.51\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 24.41\%.
+    \item At $\sigma=1.0$, near-IID data ($\alpha=10.0$) achieves 31.51\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 24.41\% (+7.10\% utility gain under reduced data heterogeneity).
     \item At $\sigma=2.0$, near-IID data ($\alpha=10.0$) achieves 15.26\% accuracy, whereas non-IID ($\alpha=0.1$) achieves 13.79\%.
-    \item The DP steps (sampling rates) differed implicitly due to Dirichlet partitioning creating unbalanced datasets, leading to varied $\varepsilon$ values despite identical configurations.
-    \item The planned $\alpha=10.0, \sigma=2.0$ seed-42 rerun was attempted but did not complete due to a native Windows Ray Virtual Client Engine memory-mapping failure at Round 8. It was excluded from all authoritative results.
+    \item The DP steps and batch sampling rates differed implicitly due to Dirichlet partitioning producing unequal client dataset sizes ($N_k$). Under $\alpha=0.1$, smaller local partitions led to higher batch sampling rates ($q = 64 / N_k$) and faster privacy expenditure ($\varepsilon \approx 2.6974$ vs $2.0691$ at $\sigma=1.0$).
+    \item The planned $\alpha=10.0, \sigma=2.0$ seed-42 rerun was attempted but did not complete due to a native Windows Ray Virtual Client Engine memory-mapping failure at Round 8; seed 44 completed all 15 rounds successfully and provides the authoritative measurement.
 \end{itemize}
+
+\subsection{Multi-Seed Robustness Evaluation}
+
+To assess statistical sensitivity to random seed initialization, we evaluate multi-seed performance across 3 distinct seeds ($\{42, 43, 44\}$) on the full CIFAR-10 dataset across 5 clients. Table~\ref{tab:stage6_multiseed} presents the empirical means and sample standard deviations ($N=3$).
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|c|c|}
+        \hline
+        $\alpha$ & $\sigma$ & Seeds & Final Acc Mean (\%) & Final Acc Std & Epsilon Mean ($\varepsilon$) & Epsilon Std \\
+        \hline
+        0.1 & 1.0 & 42, 43, 44 & 18.66 & $\pm 0.93$ & 1.5171 & $\pm 0.0215$ \\
+        0.1 & 2.0 & 42, 43, 44 & 10.96 & $\pm 1.07$ & 0.3712 & $\pm 0.0301$ \\
+        10.0 & 1.0 & 42, 43, 44 & 17.88 & $\pm 2.36$ & 1.2354 & $\pm 0.0214$ \\
+        10.0 & 2.0 & 42, 43, 44 & 9.77 & $\pm 0.69$ & 0.3073 & $\pm 0.0133$ \\
+        \hline
+    \end{tabular}
+    \caption{Multi-seed empirical robustness summary ($N=3$ seeds, 3 communication rounds).}
+    \label{tab:stage6_multiseed}
+\end{table}
+
+The multi-seed evaluation demonstrates that $\alpha=10.0, \sigma=1.0$ exhibits the largest seed variance ($\pm 2.36\%$, range 15.33\% to 20.00\%), reflecting gradient noise perturbation during early federation stages. Furthermore, the worst-case sample $\varepsilon$ upper bound remains stable across partitions ($\text{std} \le 0.03$).
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.8\textwidth]{figures/fig5_stage6_ablation.pdf}
-    \caption*{Stage 6 Alpha/Sigma Ablation results showing empirical associations.}
+    \includegraphics[width=0.85\textwidth]{figures/fig5_stage6_ablation.pdf}
+    \caption{Stage 6 Alpha/Sigma Ablation results showing empirical associations over 15 communication rounds.}
     \label{fig:stage6_ablation}
 \end{figure}
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.8\textwidth]{figures/fig6_combined.pdf}
-    \caption*{Combined Privacy-Utility Tradeoff for Stage 5 and Stage 6.}
+    \includegraphics[width=0.85\textwidth]{figures/fig5a_stage6_alpha_comparison.pdf}
+    \caption{Stage 6 Paired Heterogeneity Comparison across matching seeds ($\alpha=0.1$ vs $\alpha=10.0$ under $\sigma=1.0$ and $\sigma=2.0$).}
+    \label{fig:stage6_paired}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/fig5b_stage6_multiseed_summary.pdf}
+    \caption{Stage 6 Privacy-Utility Summary showing 3-seed mean $\pm$ standard deviation alongside 15-round reference runs.}
+    \label{fig:stage6_multiseed_summary}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/fig6_combined.pdf}
+    \caption{Combined Privacy-Utility Tradeoff across Stages 5 and 6.}
     \label{fig:stage6_combined}
 \end{figure}
 
