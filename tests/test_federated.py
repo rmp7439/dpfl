@@ -110,5 +110,85 @@ class TestFederatedPipeline(unittest.TestCase):
         # Should be a numpy client wrapper
         self.assertTrue(hasattr(client, "fit"))
 
+    def test_seed_derivation(self):
+        """Test A: Verify seed derivation determinism and distinctness."""
+        from scripts.run_federated import derive_seed
+        import hashlib
+        
+        # Consistent across multiple invocations
+        s1 = derive_seed(42, 0, 1)
+        s2 = derive_seed(42, 0, 1)
+        s1_str = derive_seed(42, "0", 1)
+        self.assertEqual(s1, s2)
+        self.assertEqual(s1, s1_str)
+        
+        # Cross-process reproducible matching exact SHA-256 digest
+        key = "42:0:1".encode("utf-8")
+        expected = int.from_bytes(hashlib.sha256(key).digest()[:4], "big") & 0x7FFFFFFF
+        self.assertEqual(s1, expected)
+        self.assertGreaterEqual(s1, 0)
+        self.assertLessEqual(s1, 0x7FFFFFFF)
+        
+        # Distinct for different client IDs
+        self.assertNotEqual(derive_seed(42, 0, 1), derive_seed(42, 1, 1))
+        # Distinct for different rounds
+        self.assertNotEqual(derive_seed(42, 0, 1), derive_seed(42, 0, 2))
+        # Distinct for different base seeds
+        self.assertNotEqual(derive_seed(42, 0, 1), derive_seed(43, 0, 1))
+
+    def test_initial_model_reproducibility(self):
+        """Test B: Verify initial model parameter determinism and change with seed."""
+        from scripts.run_federated import get_model_hash
+        
+        torch.manual_seed(42)
+        m1 = SimpleCNN()
+        torch.manual_seed(42)
+        m2 = SimpleCNN()
+        
+        h1 = get_model_hash(m1)
+        h2 = get_model_hash(m2)
+        self.assertEqual(h1, h2)
+        for p1, p2 in zip(m1.parameters(), m2.parameters()):
+            self.assertTrue(torch.equal(p1, p2))
+            
+        torch.manual_seed(999)
+        m3 = SimpleCNN()
+        h3 = get_model_hash(m3)
+        self.assertNotEqual(h1, h3)
+        has_diff = any(not torch.equal(p1, p3) for p1, p3 in zip(m1.parameters(), m3.parameters()))
+        self.assertTrue(has_diff)
+
+    def test_aggregation_ordering(self):
+        """Test C: Verify aggregate_fit sorts results ascending by numeric client ID."""
+        from scripts.run_federated import CheckpointingFedAvg
+        from flwr.common import FitRes, Status, Code, ndarrays_to_parameters
+        
+        strategy = CheckpointingFedAvg(
+            run_config={"num_clients": 3, "out_dir": "results/checkpoints_test"},
+            min_fit_clients=3,
+            min_available_clients=3
+        )
+        
+        # Create dummy parameter array
+        dummy_arr = [np.zeros((2, 2), dtype=np.float32)]
+        dummy_params = ndarrays_to_parameters(dummy_arr)
+        
+        class DummyClientProxy:
+            def __init__(self, cid):
+                self.cid = str(cid)
+                
+        # Deliberately scrambled arrival order: client 2, client 0, client 1
+        results = [
+            (DummyClientProxy(2), FitRes(status=Status(Code.OK, ""), parameters=dummy_params, num_examples=15, metrics={"client_id": "2", "train_loss": 0.2})),
+            (DummyClientProxy(0), FitRes(status=Status(Code.OK, ""), parameters=dummy_params, num_examples=10, metrics={"client_id": "0", "train_loss": 0.1})),
+            (DummyClientProxy(1), FitRes(status=Status(Code.OK, ""), parameters=dummy_params, num_examples=5, metrics={"client_id": "1", "train_loss": 0.3})),
+        ]
+        
+        aggregated_params, metrics = strategy.aggregate_fit(server_round=1, results=results, failures=[])
+        self.assertIsNotNone(aggregated_params)
+        self.assertEqual(len(strategy.participation_history), 1)
+        self.assertEqual(strategy.participation_history[0]["actual_clients"], ["0", "1", "2"])
+
+
 if __name__ == "__main__":
     unittest.main()

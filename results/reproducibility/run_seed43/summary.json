@@ -1,0 +1,94 @@
+{
+    "dataset_mode": "subset",
+    "num_train_samples": 1000,
+    "number_of_test_samples": 200,
+    "num_clients": 3,
+    "alpha": 0.1,
+    "sigma": 1.0,
+    "C": 1.0,
+    "delta": 1e-05,
+    "sample_rate": 0.125,
+    "total_dp_steps": 30,
+    "batch_size": 32,
+    "local_epochs": 1,
+    "optimizer": "SGD",
+    "learning_rate": 0.01,
+    "model": "SimpleCNN",
+    "device": "cpu",
+    "GPU": "None",
+    "number_of_communication_rounds": 2,
+    "seed": 43,
+    "per_round_test_accuracy": [
+        6.0,
+        7.5
+    ],
+    "per_round_train_loss": [
+        2.2097643956621487,
+        2.206411191999912
+    ],
+    "final_test_accuracy": 7.5,
+    "best_test_accuracy": 7.5,
+    "epsilon": 4.696513893070338,
+    "best_alpha": 4.0,
+    "initial_model_hash": "3f269f49a0401293b0f9c9032383bb2c7de05abc1d8bc05e725d9431efab2fec",
+    "final_model_hash": "1f2fa650dd8ca6154a4501f06ff5f87840eec3165eee8c2ea21f698d2a6c1104",
+    "secure_rng": false,
+    "client_details": {
+        "0": {
+            "epsilon": 3.448272163605945,
+            "best_alpha": 4.8,
+            "cumulative_steps": 30,
+            "sample_rate": 0.06666666666666667,
+            "round_steps": 15
+        },
+        "1": {
+            "epsilon": 4.224010678885699,
+            "best_alpha": 4.2,
+            "cumulative_steps": 20,
+            "sample_rate": 0.1,
+            "round_steps": 10
+        },
+        "2": {
+            "epsilon": 4.696513893070338,
+            "best_alpha": 4.0,
+            "cumulative_steps": 16,
+            "sample_rate": 0.125,
+            "round_steps": 8
+        }
+    },
+    "per_round_participation": [
+        {
+            "round": 1,
+            "expected_clients": [
+                "0",
+                "1",
+                "2"
+            ],
+            "actual_clients": [
+                "0",
+                "1",
+                "2"
+            ],
+            "num_success": 3,
+            "num_failures": 0
+        },
+        {
+            "round": 2,
+            "expected_clients": [
+                "0",
+                "1",
+                "2"
+            ],
+            "actual_clients": [
+                "0",
+                "1",
+                "2"
+            ],
+            "num_success": 3,
+            "num_failures": 0
+        }
+    ],
+    "runtime_seconds": 56.2311224937439,
+    "run_status": "Success",
+    "timestamp": "2026-10-11T15:06:29.733794"
+}

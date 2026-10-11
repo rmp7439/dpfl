@@ -26,6 +26,42 @@ from src.model import SimpleCNN
 from scripts.train_baseline import get_data, train, test
 from src.data import dirichlet_split
 from opacus.accountants.analysis.rdp import compute_rdp, get_privacy_spent
+import hashlib
+
+def derive_seed(base_seed: int, client_id: Union[int, str], server_round: int) -> int:
+    """
+    Derives a stable, process-independent integer seed in [0, 2**31 - 1]
+    from (base_seed, client_id, server_round) using SHA-256.
+    """
+    key = f"{base_seed}:{client_id}:{server_round}".encode("utf-8")
+    digest = hashlib.sha256(key).digest()
+    return int.from_bytes(digest[:4], byteorder="big") & 0x7FFFFFFF
+
+def get_model_hash(parameters_or_net: Union[nn.Module, List[np.ndarray], fl.common.Parameters]) -> str:
+    """Computes a deterministic SHA-256 hash over model parameters."""
+    hasher = hashlib.sha256()
+    if isinstance(parameters_or_net, nn.Module):
+        for name, param in sorted(parameters_or_net.state_dict().items()):
+            hasher.update(name.encode("utf-8"))
+            hasher.update(param.detach().cpu().numpy().tobytes())
+    elif isinstance(parameters_or_net, list):
+        for arr in parameters_or_net:
+            hasher.update(np.ascontiguousarray(arr).tobytes())
+    elif isinstance(parameters_or_net, fl.common.Parameters):
+        for arr in fl.common.parameters_to_ndarrays(parameters_or_net):
+            hasher.update(np.ascontiguousarray(arr).tobytes())
+    return hasher.hexdigest()
+
+def get_on_fit_config_fn(run_config: Dict):
+    def fit_config(server_round: int) -> Dict[str, fl.common.Scalar]:
+        cfg: Dict[str, fl.common.Scalar] = {
+            "server_round": int(server_round),
+            "seed": int(run_config.get("seed", 42)),
+            "local_epochs": int(run_config.get("local_epochs", 1)),
+            "batch_size": int(run_config.get("batch_size", 32)),
+        }
+        return cfg
+    return fit_config
 
 # Global data placeholders for simulation
 GLOBAL_TRAINSET = None
@@ -34,11 +70,16 @@ CLIENT_INDICES = None
 USE_DP = False
 
 class FlowerClient(fl.client.NumPyClient):
-    def __init__(self, cid, net, train_loader, test_loader, device, use_dp=False, run_config=None):
+    def __init__(self, cid, net, train_data, test_loader, device, use_dp=False, run_config=None):
         self.run_config = run_config or {}
         self.cid = cid
         self.net = net
-        self.train_loader = train_loader
+        if isinstance(train_data, DataLoader):
+            self.train_loader = train_data
+            self.client_dataset = getattr(train_data, "dataset", None)
+        else:
+            self.client_dataset = train_data
+            self.train_loader = None
         self.test_loader = test_loader
         self.device = device
         self.use_dp = use_dp
@@ -54,9 +95,35 @@ class FlowerClient(fl.client.NumPyClient):
         
     def fit(self, parameters, config):
         import time
+        import random
         start_fit = time.time()
+        
+        # 1. Deterministic per-client, per-round seed derivation
+        base_seed = int(config.get("seed", self.run_config.get("seed", 42)))
+        server_round = int(config.get("server_round", 1))
+        client_seed = derive_seed(base_seed, self.cid, server_round)
+        
+        random.seed(client_seed)
+        np.random.seed(client_seed)
+        torch.manual_seed(client_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(client_seed)
+        gen = torch.Generator()
+        gen.manual_seed(client_seed)
+        
         self.set_parameters(parameters)
         local_epochs = self.run_config.get("local_epochs", 1)
+        batch_size = self.run_config.get("batch_size", 32)
+        
+        if self.client_dataset is not None:
+            train_loader = DataLoader(
+                self.client_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                generator=gen
+            )
+        else:
+            train_loader = self.train_loader
         
         if self.use_dp:
             dp_setup_start = time.time()
@@ -76,9 +143,10 @@ class FlowerClient(fl.client.NumPyClient):
             self.net, optimizer, train_loader = privacy_engine.make_private(
                 module=self.net,
                 optimizer=optimizer,
-                data_loader=self.train_loader,
+                data_loader=train_loader,
                 noise_multiplier=self.run_config.get("noise_multiplier", 1.0),
                 max_grad_norm=self.run_config.get("max_grad_norm", 1.0),
+                noise_generator=gen,
             )
             dp_setup_time = time.time() - dp_setup_start
             
@@ -103,6 +171,8 @@ class FlowerClient(fl.client.NumPyClient):
                         grad_shapes[name] = list(param.grad_sample.shape)
                 optimizer.zero_grad()
             
+            # Re-align generator to start cleanly for training epochs
+            gen.manual_seed(client_seed)
             train_start = time.time()
             total_loss = 0.0
             for epoch in range(1, local_epochs + 1):
@@ -152,7 +222,7 @@ class FlowerClient(fl.client.NumPyClient):
             train_start = time.time()
             total_loss = 0.0
             for epoch in range(1, local_epochs + 1):
-                epoch_loss, _ = train(self.net, self.device, self.train_loader, optimizer, epoch)
+                epoch_loss, _ = train(self.net, self.device, train_loader, optimizer, epoch)
                 total_loss += epoch_loss
             train_time = time.time() - train_start
             
@@ -165,7 +235,8 @@ class FlowerClient(fl.client.NumPyClient):
                 "train_loss": avg_train_loss
             }
                 
-        return self.get_parameters(config={}), len(self.train_loader.dataset), metrics
+        dataset_len = len(self.client_dataset) if self.client_dataset is not None else len(self.train_loader.dataset)
+        return self.get_parameters(config={}), dataset_len, metrics
 
 
         
@@ -183,7 +254,6 @@ def client_fn_factory(run_config):
         import time
         start_setup = time.time()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        net = SimpleCNN().to(device)
         
         # Get the client's subset of data
         try:
@@ -192,15 +262,20 @@ def client_fn_factory(run_config):
             client_id = int(context.node_id)
             
         cid = str(client_id)
-        indices = CLIENT_INDICES[client_id]
+        base_seed = int(run_config.get("seed", 42))
+        init_seed = derive_seed(base_seed, client_id, 0)
+        torch.manual_seed(init_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(init_seed)
+        net = SimpleCNN().to(device)
         
+        indices = CLIENT_INDICES[client_id]
         client_dataset = torch.utils.data.Subset(GLOBAL_TRAINSET, indices)
         
-        train_loader = DataLoader(client_dataset, batch_size=run_config.get("batch_size", 32), shuffle=True)
         test_loader = DataLoader(GLOBAL_TESTSET, batch_size=run_config.get("batch_size", 32), shuffle=False)
         
         setup_time = time.time() - start_setup
-        client = FlowerClient(cid, net, train_loader, test_loader, device, use_dp=USE_DP, run_config=run_config)
+        client = FlowerClient(cid, net, client_dataset, test_loader, device, use_dp=USE_DP, run_config=run_config)
         client.setup_time = setup_time
         return client.to_client()
     return client_fn
@@ -209,6 +284,7 @@ def client_fn_factory(run_config):
 def fit_metrics_aggregation_fn(results: List[Tuple[int, Dict[str, fl.common.Scalar]]]) -> Dict[str, fl.common.Scalar]:
     if not results or not results[0][1].get("client_id"):
         return {}
+    results = sorted(results, key=lambda r: int(r[1].get("client_id", 0)))
     client_stats = []
     round_timings = []
     for _, m in results:
@@ -264,9 +340,12 @@ def get_evaluate_fn(testset, device, run_config):
 
 class CheckpointingFedAvg(fl.server.strategy.FedAvg):
     def __init__(self, run_config=None, *args, **kwargs):
+        if "on_fit_config_fn" not in kwargs or kwargs["on_fit_config_fn"] is None:
+            kwargs["on_fit_config_fn"] = get_on_fit_config_fn(run_config or {})
         super().__init__(*args, **kwargs)
         self.run_config = run_config or {}
         self.participation_history = []
+        self.last_aggregated_parameters = None
         
     def aggregate_fit(self, server_round: int, results, failures):
         expected_clients = self.run_config.get("num_clients", 5)
@@ -277,26 +356,37 @@ class CheckpointingFedAvg(fl.server.strategy.FedAvg):
         if len(results) != expected_clients:
             raise RuntimeError(f"Round {server_round} failed: expected {expected_clients} clients, but got {len(results)}.")
             
-        expected_cids = {str(i) for i in range(expected_clients)}
-        received_cids = set()
-        for _, fit_res in results:
-            if "client_id" in fit_res.metrics:
-                received_cids.add(str(fit_res.metrics["client_id"]))
+        # Stabilize aggregation order: sort results deterministically by numeric client ID
+        def get_numeric_cid(res_tuple):
+            _, fit_res = res_tuple
+            if "client_id" not in fit_res.metrics:
+                raise ValueError("fit_res.metrics missing required 'client_id' field")
+            cid_val = fit_res.metrics["client_id"]
+            try:
+                return int(cid_val)
+            except (ValueError, TypeError):
+                raise ValueError(f"Invalid numeric client_id in metrics: {cid_val}")
+
+        results = sorted(results, key=get_numeric_cid)
+
+        expected_cids = [str(i) for i in range(expected_clients)]
+        received_cids = [str(fit_res.metrics["client_id"]) for _, fit_res in results if "client_id" in fit_res.metrics]
                 
         self.participation_history.append({
             "round": server_round,
-            "expected_clients": list(expected_cids),
-            "actual_clients": list(received_cids),
+            "expected_clients": expected_cids,
+            "actual_clients": received_cids,
             "num_success": len(results),
             "num_failures": len(failures) if failures else 0
         })
                 
-        if received_cids != expected_cids:
-            raise RuntimeError(f"Round {server_round} failed: expected client IDs {expected_cids}, got {received_cids}")
-            
+        if set(received_cids) != set(expected_cids):
+            raise RuntimeError(f"Round {server_round} failed: expected client IDs {set(expected_cids)}, got {set(received_cids)}")
+
         aggregated_parameters, aggregated_metrics = super().aggregate_fit(server_round, results, failures)
         
         if aggregated_parameters is not None:
+            self.last_aggregated_parameters = aggregated_parameters
             ndarrays = fl.common.parameters_to_ndarrays(aggregated_parameters)
             out_dir = self.run_config.get("out_dir", "results/checkpoints")
             ckpt_dir = os.path.join(out_dir, "checkpoints")
@@ -313,8 +403,12 @@ class CheckpointingFedAvg(fl.server.strategy.FedAvg):
                     "C": fit_res.metrics.get("C", 0),
                     "train_loss": fit_res.metrics.get("train_loss", 0.0)
                 })
-            with open(f"results/checkpoints/round_{server_round}_stats.json", "w") as f:
+            with open(os.path.join(ckpt_dir, f"round_{server_round}_stats.json"), "w") as f:
                 json.dump(client_stats, f)
+            if out_dir != "results/checkpoints":
+                os.makedirs("results/checkpoints", exist_ok=True)
+                with open(f"results/checkpoints/round_{server_round}_stats.json", "w") as f:
+                    json.dump(client_stats, f)
                 
         return aggregated_parameters, aggregated_metrics
 
@@ -338,6 +432,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--rounds", type=int, help="Number of communication rounds (overrides config)")
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for results")
+    parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .npz or directory to resume from")
     args = parser.parse_args()
     
     USE_DP = args.enable_dp
@@ -345,7 +440,7 @@ def main():
     from copy import deepcopy
     run_config = deepcopy(FULL_CONFIG if args.full else SUBSET_CONFIG)
     run_config["out_dir"] = args.output_dir or ("results/stage4" if args.enable_dp else "results/stage3")
-    
+    run_config["seed"] = args.seed
         
     if args.sigma is not None:
         run_config["noise_multiplier"] = args.sigma
@@ -356,8 +451,18 @@ def main():
             raise ValueError("--rounds must be a positive integer")
         run_config["num_rounds"] = args.rounds
         
+    import random
+    random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    try:
+        torch.use_deterministic_algorithms(True, warn_only=True)
+    except Exception:
+        pass
         
     num_samples = run_config.get("num_samples", 1000)
     num_clients = run_config.get("num_clients", 3)
@@ -385,6 +490,33 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Selected Device: {device}")
     
+    # Construct initial parameters: seeded initial global model for fresh runs,
+    # or restored parameters from checkpoint when resuming.
+    initial_parameters = None
+    initial_model_hash = None
+    if getattr(args, "resume", None):
+        ckpt_path = args.resume
+        if os.path.isdir(ckpt_path):
+            npz_files = [f for f in os.listdir(ckpt_path) if f.startswith("round_") and f.endswith(".npz")]
+            if not npz_files:
+                raise FileNotFoundError(f"No round_*.npz checkpoints found in {ckpt_path}")
+            npz_files.sort(key=lambda x: int(x.split("_")[1].split(".")[0]))
+            ckpt_path = os.path.join(ckpt_path, npz_files[-1])
+        print(f"Resuming from checkpoint: {ckpt_path}")
+        ckpt_data = np.load(ckpt_path)
+        initial_ndarrays = [ckpt_data[f] for f in ckpt_data.files]
+        initial_parameters = fl.common.ndarrays_to_parameters(initial_ndarrays)
+        initial_model_hash = get_model_hash(initial_ndarrays)
+    else:
+        # Fresh run: construct initial SimpleCNN seeded by args.seed
+        torch.manual_seed(args.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.seed)
+        init_net = SimpleCNN()
+        initial_ndarrays = [val.cpu().numpy() for _, val in init_net.state_dict().items()]
+        initial_parameters = fl.common.ndarrays_to_parameters(initial_ndarrays)
+        initial_model_hash = get_model_hash(initial_ndarrays)
+
     strategy = CheckpointingFedAvg(
         fraction_fit=1.0,
         fraction_evaluate=0.0,
@@ -393,14 +525,10 @@ def main():
         accept_failures=False,
         fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
         evaluate_fn=get_evaluate_fn(GLOBAL_TESTSET, device, run_config),
+        on_fit_config_fn=get_on_fit_config_fn(run_config),
+        initial_parameters=initial_parameters,
         run_config=run_config,
     )
-    
-    # Checkpoints are saved by CheckpointingFedAvg. 
-    # Resume logic is omitted because Flower's start_simulation does not natively 
-    # support resuming the round counter. Injecting initial_parameters would restart 
-    # the simulation from round 1, silently duplicating privacy accounting composition.
-    # See docs/COMPUTE_OPTIMIZATION_REPORT.md for details.
     if torch.cuda.is_available():
         print(f"GPU Name: {torch.cuda.get_device_name(0)}")
     import opacus
@@ -449,6 +577,11 @@ def main():
     if history.metrics_distributed_fit and "train_loss" in history.metrics_distributed_fit:
         train_loss_history = [loss for r, loss in history.metrics_distributed_fit["train_loss"] if r > 0]
         
+    final_model_hash = None
+    if hasattr(strategy, "last_aggregated_parameters") and strategy.last_aggregated_parameters is not None:
+        final_ndarrays = fl.common.parameters_to_ndarrays(strategy.last_aggregated_parameters)
+        final_model_hash = get_model_hash(final_ndarrays)
+
     if not USE_DP:
         # Persistence for Stage 3
         out_dir = args.output_dir or os.path.join("results", "stage3")
@@ -474,6 +607,9 @@ def main():
             "per_round_train_loss": train_loss_history,
             "final_test_accuracy": final_acc,
             "best_test_accuracy": max(acc_history) if acc_history else 0.0,
+            "initial_model_hash": initial_model_hash,
+            "final_model_hash": final_model_hash,
+            "secure_rng": False,
             "execution_status": "Success",
             "device": str(torch.device("cuda" if torch.cuda.is_available() else "cpu")),
             "per_round_participation": strategy.participation_history,
@@ -617,6 +753,9 @@ def main():
             "best_test_accuracy": max(acc_history) if acc_history else 0.0,
             "epsilon": final_epsilon,
             "best_alpha": final_best_alpha,
+            "initial_model_hash": initial_model_hash,
+            "final_model_hash": final_model_hash,
+            "secure_rng": False,
             "client_details": round_stats[-1]["client_details"] if round_stats else {},
             "per_round_participation": strategy.participation_history,
             "runtime_seconds": runtime,

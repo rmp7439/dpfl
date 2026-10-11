@@ -1,0 +1,84 @@
+{
+    "grad_sample_present": true,
+    "grad_sample_shapes": {
+        "_module.conv1.weight": [
+            33,
+            16,
+            3,
+            3,
+            3
+        ],
+        "_module.conv1.bias": [
+            33,
+            16
+        ],
+        "_module.gn1.weight": [
+            33,
+            16
+        ],
+        "_module.gn1.bias": [
+            33,
+            16
+        ],
+        "_module.conv2.weight": [
+            33,
+            32,
+            16,
+            3,
+            3
+        ],
+        "_module.conv2.bias": [
+            33,
+            32
+        ],
+        "_module.gn2.weight": [
+            33,
+            32
+        ],
+        "_module.gn2.bias": [
+            33,
+            32
+        ],
+        "_module.conv3.weight": [
+            33,
+            64,
+            32,
+            3,
+            3
+        ],
+        "_module.conv3.bias": [
+            33,
+            64
+        ],
+        "_module.gn3.weight": [
+            33,
+            64
+        ],
+        "_module.gn3.bias": [
+            33,
+            64
+        ],
+        "_module.fc1.weight": [
+            33,
+            128,
+            1024
+        ],
+        "_module.fc1.bias": [
+            33,
+            128
+        ],
+        "_module.fc2.weight": [
+            33,
+            10,
+            128
+        ],
+        "_module.fc2.bias": [
+            33,
+            10
+        ]
+    },
+    "clipping_C": 1.0,
+    "noise_sigma": 1.0,
+    "actual_batch_size_probed": 33,
+    "optimizer_class": "DPOptimizer"
+}
