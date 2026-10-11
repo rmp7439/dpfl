@@ -2,6 +2,7 @@
     "dataset_mode": "full",
     "number_of_samples": 50000,
     "number_of_clients": 5,
+    "num_clients": 5,
     "alpha": 0.1,
     "seed": 42,
     "samples_per_client": {
@@ -11,6 +12,13 @@
         "3": 9029,
         "4": 5579
     },
+    "client_sample_distribution": [
+        12944,
+        10514,
+        11934,
+        9029,
+        5579
+    ],
     "class_counts_per_client": {
         "0": [
             0.0,

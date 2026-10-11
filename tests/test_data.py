@@ -113,6 +113,101 @@ class TestDirichletSplit(unittest.TestCase):
         self.assertGreater(std_low, std_high,
             "alpha=0.1 should be more heterogeneous than alpha=10")
 
+    def test_full_cifar10_dirichlet_split_and_heterogeneity_reference(self):
+        """Verify full CIFAR-10 alpha=0.1 and alpha=10.0 split against known references."""
+        from data import get_cifar10, dirichlet_split
+        
+        # 1. alpha=0.1 reference check
+        np.random.seed(42)
+        dataset = get_cifar10(subset_size=None)
+        client_indices_01, labels = dirichlet_split(dataset, num_clients=5, alpha=0.1)
+        
+        sizes_01 = [len(client_indices_01[i]) for i in range(5)]
+        expected_sizes_01 = [12944, 10514, 11934, 9029, 5579]
+        self.assertEqual(sizes_01, expected_sizes_01, "alpha=0.1 client sample counts do not match reference")
+        
+        # Calculate heterogeneity metric (mean of per-class standard deviations)
+        counts_01 = np.zeros((5, 10))
+        for cid, idxs in client_indices_01.items():
+            for idx in idxs:
+                counts_01[cid, labels[idx]] += 1
+        het_01 = float(np.mean(np.std(counts_01, axis=0)))
+        
+        # Reference value is approximately 1699.28
+        self.assertAlmostEqual(het_01, 1699.280992, places=2,
+                               msg=f"alpha=0.1 heterogeneity {het_01} does not match reference ~1699.28")
+
+        # 2. alpha=10.0 check
+        np.random.seed(42)
+        client_indices_10, labels = dirichlet_split(dataset, num_clients=5, alpha=10.0)
+        sizes_10 = [len(client_indices_10[i]) for i in range(5)]
+        expected_sizes_10 = [8856, 10009, 10553, 10399, 10183]
+        self.assertEqual(sizes_10, expected_sizes_10, "alpha=10.0 client sample counts do not match expected")
+        
+        counts_10 = np.zeros((5, 10))
+        for cid, idxs in client_indices_10.items():
+            for idx in idxs:
+                counts_10[cid, labels[idx]] += 1
+        het_10 = float(np.mean(np.std(counts_10, axis=0)))
+        
+        # Verify lower heterogeneity for alpha=10.0 compared to alpha=0.1
+        self.assertLess(het_10, het_01, "alpha=10.0 should have lower heterogeneity than alpha=0.1")
+        self.assertAlmostEqual(het_10, 236.879573, places=2)
+
+    def test_split_validation_artifacts_schema_and_compatibility(self):
+        """Verify saved validation JSON artifacts match required schema and references."""
+        for filename, expected_alpha, expected_sizes in [
+            ("split_validation_full.json", 0.1, [12944, 10514, 11934, 9029, 5579]),
+            ("split_validation_full_alpha0.1.json", 0.1, [12944, 10514, 11934, 9029, 5579]),
+            ("split_validation_full_alpha10.0.json", 10.0, [8856, 10009, 10553, 10399, 10183]),
+        ]:
+            path = os.path.join(project_root, "results", "stage1", filename)
+            if not os.path.exists(path):
+                continue
+            with open(path, "r") as f:
+                data = json.load(f)
+                
+            self.assertEqual(data["dataset_mode"], "full")
+            self.assertEqual(data["number_of_samples"], 50000)
+            self.assertEqual(data["number_of_clients"], 5)
+            self.assertEqual(data["num_clients"], 5)
+            self.assertEqual(data["alpha"], expected_alpha)
+            self.assertEqual(data["seed"], 42)
+            self.assertTrue(data["all_samples_assigned_exactly_once"])
+            self.assertEqual(data["missing_samples"], 0)
+            self.assertEqual(data["duplicated_samples"], 0)
+            
+            actual_sizes = [data["samples_per_client"][str(i)] for i in range(5)]
+            self.assertEqual(actual_sizes, expected_sizes)
+            if "client_sample_distribution" in data:
+                self.assertEqual(data["client_sample_distribution"], expected_sizes)
+
+    def test_cli_argument_validation(self):
+        """Verify invalid alpha and client count values raise ValueError."""
+        # Test alpha <= 0
+        from data import main
+        import sys
+        
+        orig_argv = sys.argv
+        try:
+            sys.argv = ["data.py", "--alpha", "0.0"]
+            with self.assertRaises(ValueError):
+                main()
+                
+            sys.argv = ["data.py", "--alpha", "-1.0"]
+            with self.assertRaises(ValueError):
+                main()
+                
+            sys.argv = ["data.py", "--num-clients", "0"]
+            with self.assertRaises(ValueError):
+                main()
+                
+            sys.argv = ["data.py", "--num-clients", "-5"]
+            with self.assertRaises(ValueError):
+                main()
+        finally:
+            sys.argv = orig_argv
+
 
 if __name__ == "__main__":
     unittest.main()
