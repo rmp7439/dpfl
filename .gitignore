@@ -16,3 +16,4 @@ wandb/
 
 a.txt
 .venv_wsl/
+.venv_uv/

@@ -43,7 +43,7 @@ DPFL/
 ├── tests/               # Automated tests
 │
 ├── .gitignore
-├── AGENTS.md
+├── Dockerfile
 ├── README.md
 ├── requirements.txt
 └── technical_report.tex
