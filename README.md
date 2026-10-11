@@ -123,7 +123,7 @@ Privacy is accounted via **Rényi Differential Privacy (RDP)**:
 4. Because the Dirichlet partition creates disjoint client datasets, privacy composes in parallel across clients.
 5. The global privacy guarantee is defined by the maximum client-level $\varepsilon$, evaluated at $\delta = 1e-5$.
 
-*Note: Clipping norm $C$ strictly bounds per-sample gradient sensitivity, and Opacus scales injected Gaussian noise according to $C$ and $\sigma$. The privacy analysis uses Opacus RDP accounting with a subsampling model whose Poisson assumptions are distinct from local without-replacement batch loading. The reported global bound takes the maximum per-client $\varepsilon$ assuming parallel composition across disjoint partitions and post-processing aggregation; while numerical values match Opacus accountant recomputations, these modeling assumptions have not undergone external human review.*
+*Note: Clipping norm $C$ strictly bounds per-sample gradient sensitivity, and Opacus scales injected Gaussian noise according to $C$ and $\sigma$. The privacy analysis uses Opacus RDP accounting with Poisson-sampled batches (`make_private` default) and the loader's sample rate q = 1/len(loader). The reported global bound takes the maximum per-client $\varepsilon$ assuming parallel composition across disjoint partitions and post-processing aggregation; while numerical values match Opacus accountant recomputations, these modeling assumptions have not undergone external human review.*
 
 ## Results summary
 - **Stage 2 Centralized Baseline**: 74.87% (Adam, lr=0.001; empirical baseline relative to target).
