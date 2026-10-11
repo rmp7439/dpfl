@@ -200,7 +200,7 @@ Across the 12 three-round multi-seed runs:
 | 3 | 9,029 | 0.00704 | 2,130 | 2.0442 | 8.4 |
 | 4 | 5,579 | 0.01136 | 1,320 | 2.6974 | 6.9 |
 
-*Note: Global privacy is determined by Client 4 ($\varepsilon_{\text{global}} = 2.6974$), while summary `total_dp_steps` records Client 0 ($T=3,045$).*
+*Note: Per-client metrics are recorded directly in the run summary artifact (`client_details`). Global privacy is determined by Client 4 ($\varepsilon_{\text{global}} = 2.6974$), while summary `total_dp_steps` records Client 0 ($T=3,045$).*
 
 **Configuration 2: Near-IID ($\alpha=10.0$)**
 
@@ -212,7 +212,7 @@ Across the 12 three-round multi-seed runs:
 | 3 | 10,399 | 0.00613 | 2,445 | 1.8925 | 8.8 |
 | 4 | 10,183 | 0.00625 | 2,400 | 1.9120 | 8.7 |
 
-*Note: Global privacy is determined by Client 0 ($\varepsilon_{\text{global}} = 2.0691$), while summary `total_dp_steps` records Client 2 ($T=2,475$).*
+*Note: Per-client metrics are recorded directly in the run summary artifact (`client_details`). Global privacy is determined by Client 0 ($\varepsilon_{\text{global}} = 2.0691$), while summary `total_dp_steps` records Client 2 ($T=2,475$).*
 
 **Google Colab Environment Notes:**
 If executing in cloud GPU environments like Google Colab:
