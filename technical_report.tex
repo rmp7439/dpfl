@@ -165,7 +165,7 @@ Table~\ref{tab:hyperparameters} consolidates all experimental hyperparameters ac
 The centralized baseline achieves \textbf{74.87\%} test accuracy after 30 epochs of Adam optimization (learning rate 0.001). Non-private FedAvg achieves \textbf{47.38\%} test accuracy after 15 communication rounds under $\alpha=0.1$ data heterogeneity (SGD, learning rate 0.05, 1 local epoch per round). 
 
 \paragraph{Confounded Baseline Comparison.}
-The 27.49 percentage-point difference between the centralized baseline (74.87\%) and non-private FedAvg (47.38\%) does not represent the cost of differential privacy or data heterogeneity alone. The comparison is confounded by optimizer selection (Adam with cosine annealing vs. fixed SGD), learning rate (0.001 vs. 0.05), training budget (30 full epochs vs. 15 federated rounds with 1 local epoch), and federated aggregation dynamics. No near-IID non-private FedAvg baseline was established in the experimental records, precluding causal isolation of these individual factors.
+The 27.49 percentage-point difference between the centralized baseline (74.87\%) and non-private FedAvg (47.38\%) does not represent the cost of differential privacy or data heterogeneity alone. The comparison is confounded by optimizer selection (Adam with cosine annealing vs. fixed SGD), learning rate (0.001 vs. 0.05), training budget (30 full epochs vs. 15 federated rounds with 1 local epoch), and federated aggregation dynamics. Furthermore, the comparison is also confounded by momentum (0.0 for FedAvg versus 0.9 for DP-FL), alongside the already listed differences in optimizer, learning rate, training budget, and federated aggregation dynamics. No near-IID non-private FedAvg baseline was established in the experimental records, precluding causal isolation of these individual factors.
 
 \subsection{Main DP-FL Result (Stage 4)}
 The primary Stage~4 DP-FL configuration ($\alpha=0.1, \sigma=1.0, C=1.0$, seed 42) attains a final test accuracy of \textbf{26.11\%} (with a best round accuracy of 27.29\% at round 14) and an accountant-reported cumulative privacy bound of $\varepsilon = 2.6974$ ($\delta=10^{-5}$, minimizing Rényi order $\alpha_{\text{RDP}}=6.9$).
@@ -343,9 +343,9 @@ During artifact inspection, three distinct final test accuracies were identified
 \section{Discussion}
 
 \paragraph{Privacy Budget vs. Model Utility.}
-Our empirical findings demonstrate that formal privacy bounds do not map monotonically to classification accuracy. Prior assumptions in DP-FL often suggest that enforcing $\varepsilon < 2.0$ necessarily constrains accuracy below 30\%. However:
+Our empirical findings demonstrate that formal privacy bounds do not map monotonically to classification accuracy:
 \begin{itemize}
-    \item In Stage~5, configuring $\sigma=2.0$ with $C=0.1$ achieved \textbf{30.57\%} test accuracy at $\varepsilon = 0.9117$ in a single run.
+    \item In Stage~5, configuring $\sigma=2.0$ with $C=0.1$ achieved \textbf{30.57\%} test accuracy at an accountant-reported $\varepsilon = 0.9117$ in a single run, without establishing a causal effect or a general guarantee.
     \item In Stage~6, the near-IID configuration ($\alpha=10.0, \sigma=1.0, C=1.0$) achieved \textbf{31.51\%} accuracy at $\varepsilon = 2.0691$ in a single run.
 \end{itemize}
 Model utility depends intricately on gradient clipping norm $C$, local gradient variance, and optimization dynamics, rather than differential privacy budget $\varepsilon$ in isolation. Moreover, the observed results do not establish a causal effect of clipping threshold $C$ independently of other training factors. Clipping interacts directly with effective learning rate, gradient signal-to-noise ratio, and batch variance; varying $C$ without retuning the learning rate simultaneously shifts both the optimization step size and the injected noise scale.
@@ -418,7 +418,7 @@ Tables~\ref{tab:app_alpha01} and~\ref{tab:app_alpha10} record the verified per-c
 \label{sec:reproducibility}
 
 \subsection{Deterministic Seeding Architecture}
-Prior to commit \texttt{08ad3f8} on October 11, 2026, experimental executions across Stages 4, 5, and 6 (conducted between October 7 and October 9, 2026) lacked deterministic worker seeding, per-round client seed derivation, and isolated DataLoader RNG generators. This historical non-determinism accounts for the observed 4.33 percentage-point spread across nominally identical runs. In commit \texttt{08ad3f8}, determinism was formalized in \texttt{run\_federated.py}:
+Prior to commit \texttt{08ad3f8} on October 11, 2026, experimental executions across Stages 4, 5, and 6 (conducted between October 7 and October 9, 2026) lacked deterministic worker seeding, per-round client seed derivation, and isolated DataLoader RNG generators. This historical non-determinism likely contributes to the observed 4.33 percentage-point spread across nominally identical runs. In commit \texttt{08ad3f8}, determinism was formalized in \texttt{run\_federated.py}:
 \begin{itemize}
     \item \textbf{Root Initialization}: Seeds Python \texttt{random}, NumPy, and PyTorch RNGs using base seed.
     \item \textbf{Per-Client Seeding}: Deterministically derives an integer seed via SHA-256:
