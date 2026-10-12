@@ -199,16 +199,35 @@ def save_publication_figure(
     fig.savefig(target_png, format="png", dpi=dpi)
 
     # 3. Native LaTeX PGF export
-    has_latex, _ = check_latex_toolchain()
-    if has_latex:
-        fig.savefig(target_pgf, format="pgf")
-    else:
-        orig_get = backend_pgf.LatexManager._get_cached_or_new
-        try:
-            backend_pgf.LatexManager._get_cached_or_new = lambda: FallbackLatexManager()
+    # In LaTeX PGF backend, unescaped '&' in text causes "! Misplaced alignment tab character &".
+    # Temporarily escape '&' as '\&' for PGF compilation, then restore.
+    text_replacements = []
+    for ax in fig.axes:
+        t = ax.title.get_text()
+        if "&" in t and r"\&" not in t:
+            text_replacements.append((ax.title, t))
+            ax.title.set_text(t.replace("&", r"\&"))
+        for artist in ax.get_children():
+            if isinstance(artist, matplotlib.text.Text):
+                txt = artist.get_text()
+                if "&" in txt and r"\&" not in txt:
+                    text_replacements.append((artist, txt))
+                    artist.set_text(txt.replace("&", r"\&"))
+
+    try:
+        has_latex, _ = check_latex_toolchain()
+        if has_latex:
             fig.savefig(target_pgf, format="pgf")
-        finally:
-            backend_pgf.LatexManager._get_cached_or_new = orig_get
+        else:
+            orig_get = backend_pgf.LatexManager._get_cached_or_new
+            try:
+                backend_pgf.LatexManager._get_cached_or_new = lambda: FallbackLatexManager()
+                fig.savefig(target_pgf, format="pgf")
+            finally:
+                backend_pgf.LatexManager._get_cached_or_new = orig_get
+    finally:
+        for artist, orig_text in text_replacements:
+            artist.set_text(orig_text)
 
     # Validation
     for p, fmt in [(target_pdf, "PDF"), (target_png, "PNG"), (target_pgf, "PGF")]:
@@ -468,17 +487,15 @@ def main():
 
                 # Figure 2a: Test Accuracy Convergence
                 fig2a, ax2a = plt.subplots(figsize=(3.5, 2.5))
-                ax2a.plot(r_nums, accs, marker='o', label=r"DP-FL ($\sigma=1.0, C=1.0$)")
-                if central_accs:
-                    epochs_per_round = len(central_accs) / len(r_nums)
-                    x_central = [i / epochs_per_round + 1 for i in range(len(central_accs))]
-                    ax2a.plot(x_central, central_accs, linestyle='--', color="#E63946", alpha=0.75,
-                              label="Centralized Baseline")
+                ax2a.plot(r_nums, accs, marker='o', color='#1D3557', label=r"DP-FL ($\sigma=1.0, C=1.0$)")
+                ax2a.axhline(y=74.87, color="#E63946", linestyle='--', linewidth=1.2, alpha=0.85,
+                             label="Centralized Ref. (74.87%)")
                 ax2a.set_title(rf"Stage 4 Accuracy Convergence{title_suffix}")
                 ax2a.set_xlabel("Communication Round")
                 ax2a.set_ylabel("Test Accuracy (%)")
+                ax2a.set_ylim(0, 85)
                 ax2a.grid(True)
-                ax2a.legend(loc="lower right", framealpha=0.85)
+                ax2a.legend(loc="center right", framealpha=0.85)
                 save_publication_figure(fig2a, os.path.join(out_dir, f"{fig_prefix}fig2a_stage4_accuracy_convergence"), dpi=args.dpi, staging_dir=staging_dir)
                 plt.close(fig2a)
 
@@ -486,15 +503,13 @@ def main():
                 if "train_loss" in rounds[0]:
                     dp_loss = [r["train_loss"] for r in rounds]
                     fig2b, ax2b = plt.subplots(figsize=(3.5, 2.5))
-                    ax2b.plot(r_nums, dp_loss, marker='o', label=r"DP-FL ($\sigma=1.0, C=1.0$)")
-                    if central_loss:
-                        ax2b.plot(x_central, central_loss, linestyle='--', color="#E63946", alpha=0.75,
-                                  label="Centralized Baseline")
+                    ax2b.plot(r_nums, dp_loss, marker='o', color='#1D3557', label=r"DP-FL ($\sigma=1.0, C=1.0$)")
                     ax2b.set_title(rf"Stage 4 Training Loss{title_suffix}")
                     ax2b.set_xlabel("Communication Round")
                     ax2b.set_ylabel("Loss (Cross Entropy)")
+                    ax2b.set_ylim(1.50, 1.85)
                     ax2b.grid(True)
-                    ax2b.legend(loc="upper right", framealpha=0.85)
+                    ax2b.legend(loc="lower left", framealpha=0.85)
                     save_publication_figure(fig2b, os.path.join(out_dir, f"{fig_prefix}fig2b_stage4_loss_convergence"), dpi=args.dpi, staging_dir=staging_dir)
                     plt.close(fig2b)
 
@@ -636,6 +651,7 @@ def main():
                 ax5a.set_ylabel("Accuracy (%)")
                 ax5a.set_xticks(x_indices)
                 ax5a.set_xticklabels([f"S{s}" for s in seeds])
+                ax5a.set_ylim(0, 28)  # Headroom prevents legend from obscuring bars
                 ax5a.grid(axis='y', linestyle=':', alpha=0.6)
                 ax5a.legend(ncol=2, loc="upper right", framealpha=0.85, fontsize=5.8)
                 save_publication_figure(fig5a, os.path.join(out_dir, f"{fig_prefix}fig5a_stage6_alpha_comparison"), dpi=args.dpi, staging_dir=staging_dir)
@@ -647,22 +663,35 @@ def main():
             with open(ms_agg_file, "r", encoding="utf-8") as f:
                 ms_agg_data = json.load(f)
             fig5b, ax5b = plt.subplots(figsize=(3.5, 2.7))
+            
+            cfg_colors = {
+                (0.1, 1.0): "#1D3557",
+                (10.0, 1.0): "#457B9D",
+                (0.1, 2.0): "#E76F51",
+                (10.0, 2.0): "#E63946"
+            }
+            
             for item in ms_agg_data:
+                k = (item['alpha'], item['sigma'])
+                color = cfg_colors.get(k, "#1D3557")
                 marker = 'o' if item['alpha'] == 0.1 else 's'
-                color = '#1D3557' if item['sigma'] == 1.0 else '#E63946'
                 acc_m = item['final_test_accuracy_mean']
                 acc_s = item['final_test_accuracy_std']
                 eps_m = item['epsilon_mean']
                 eps_s = item.get('epsilon_std', 0.0)
                 ax5b.errorbar(eps_m, acc_m, xerr=eps_s, yerr=acc_s,
-                              label=rf"3R: $\alpha={item['alpha']}, \sigma={item['sigma']}$",
-                              marker=marker, color=color, markersize=6, capsize=3, linestyle='None')
+                              label=rf"3R ($N=3$): $\alpha={item['alpha']}, \sigma={item['sigma']}$",
+                              marker=marker, color=color, markerfacecolor='white',
+                              markeredgecolor=color, markeredgewidth=1.3,
+                              markersize=5.5, capsize=3, linestyle='None')
 
             for d in s6_data:
+                k = (d['alpha'], d['sigma'])
+                color = cfg_colors.get(k, "#1D3557")
                 marker = '^' if d['alpha'] == 0.1 else 'D'
-                color = '#457B9D' if d['sigma'] == 1.0 else '#F4A261'
+                seed_info = f" (s{d['seed']})" if 'seed' in d else ""
                 ax5b.scatter(d['epsilon'], d['final_test_accuracy'],
-                             label=rf"15R: $\alpha={d['alpha']}, \sigma={d['sigma']}$",
+                             label=rf"15R{seed_info}: $\alpha={d['alpha']}, \sigma={d['sigma']}$",
                              marker=marker, color=color, s=55, edgecolors='black', linewidth=0.8)
 
             ax5b.set_title(r"Stage 6 Utility (3R Mean $\pm$ Std vs 15R)")
@@ -687,7 +716,7 @@ def main():
             ax6.scatter(d['epsilon'], d['final_test_accuracy'],
                         label=rf"S6 (15R): $\alpha={d['alpha']}, \sigma={d['sigma']}$",
                         marker=marker, color=color, s=65, edgecolors='black', linewidth=0.8)
-        ax6.set_title(rf"Combined Tradeoff (Stages 5 \& 6){title_suffix}")
+        ax6.set_title(rf"Combined Tradeoff (Stages 5 & 6){title_suffix}")
         ax6.set_xlabel(r"Cumulative Epsilon ($\epsilon$)")
         ax6.set_ylabel("Accuracy (%)")
         ax6.grid(True)

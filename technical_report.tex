@@ -8,8 +8,14 @@
 \usepackage{caption}
 \geometry{margin=1in}
 
-\title{Differentially Private Federated Learning (DP-FL) on CIFAR-10}
-\author{Rudra}
+% Float placement parameters to avoid excessive float accumulation
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.15}
+\renewcommand{\floatpagefraction}{0.8}
+
+\title{\textbf{Differentially Private Federated Learning on CIFAR-10:\\An Empirical Audit and Scientific Evaluation}}
+\author{Rudra Patni}
 \date{October 2026}
 
 \begin{document}
@@ -17,435 +23,453 @@
 \maketitle
 
 \begin{abstract}
-This project implements and evaluates a Differentially Private Federated Learning (DP-FL) system on the CIFAR-10 dataset. By combining Flower for federated orchestration and Opacus for Differential Privacy (DP), we investigate the privacy-utility tradeoff under non-IID data distributions partitioned via a Dirichlet distribution ($\alpha \in \{0.1, 10.0\}$). Across evaluated noise multipliers ($\sigma \in \{0.5, 1.0, 1.5, 2.0\}$) and clipping thresholds ($C \in \{0.1, 1.0\}$), Differential Privacy enforces a strict mathematical bound at the cost of classification accuracy. In multi-seed evaluations over early communication rounds, accuracy differences between heterogeneity levels remain within random seed variance.
+This report presents an empirical audit and evaluation of a Differentially Private Federated Learning (DP-FL) system on the CIFAR-10 dataset. Using Flower for federated orchestration and Opacus for Differential Privacy (DP), we investigate the privacy--utility tradeoff across five clients under symmetric Dirichlet data partitioning ($\alpha \in \{0.1, 10.0\}$), varying Gaussian noise multipliers ($\sigma \in \{0.5, 1.0, 1.5, 2.0\}$), and per-sample gradient clipping thresholds ($C \in \{0.1, 1.0\}$) at a target failure probability of $\delta = 10^{-5}$. On full CIFAR-10, the centralized non-private baseline achieves 74.87\% test accuracy (Adam, learning rate 0.001, 30 epochs), while non-private FedAvg achieves 47.38\% accuracy across 15 communication rounds ($\alpha=0.1$, SGD, learning rate 0.05, 1 local epoch per round). Under DP-FL with $\sigma=1.0$ and $C=1.0$ ($\alpha=0.1$, seed 42), the primary 15-round Stage~4 run achieves 26.11\% test accuracy at $\varepsilon=2.6974$; however, historical runs predating the repository's end-to-end determinism patch exhibited noticeable outcome variance across nominally identical configurations (24.41\%--28.74\%). Across the privacy grid, empirical accuracy does not decrease monotonically with $\sigma$: configuring $\sigma=2.0$ with $C=0.1$ attains 30.57\% test accuracy at $\varepsilon=0.9117$, demonstrating that formal privacy bounds below $\varepsilon < 2.0$ do not categorically constrain accuracy below 30\%. Centralized and federated comparisons are confounded by differing optimizers, learning rates, and training budgets, precluding causal attribution of the centralized-to-federated accuracy gap solely to differential privacy. Multi-seed evaluations over three communication rounds ($N=3$, seeds $\{42, 43, 44\}$) yield preliminary accuracies between 9.77\% and 18.66\%, with observed gaps across heterogeneity settings remaining within random seed variance.
 \end{abstract}
 
-\section{Introduction}
+\section{Introduction and Related Work}
 
-Federated Learning (FL) allows distributed edge devices to collaboratively train a shared model without transmitting raw data to a central server. However, exchanging model weights or gradients remains vulnerable to inference attacks, where adversaries can reconstruct original training examples. Differential Privacy (DP) mitigates this by injecting calibrated noise and clipping gradients, providing a mathematical guarantee of privacy. In this work, we train a CNN on CIFAR-10 distributed across 5 clients, exploring how data heterogeneity interacts with DP-SGD mechanisms.
+Federated Learning (FL) enables distributed edge devices to collaboratively train a shared machine learning model without centralizing raw data~\cite{mcmahan2017}. Although raw training data remain on local devices, sharing parameter updates or gradients remains susceptible to inference and data reconstruction attacks that can recover private training instances. Differential Privacy (DP), specifically through Differentially Private Stochastic Gradient Descent (DP-SGD)~\cite{abadi2016}, mitigates these risks by bounding individual gradient contributions and injecting calibrated noise.
 
-\section{Problem Statement}
+In this work, we implement and audit a DP-FL system for image classification on CIFAR-10 partitioned across five clients using Flower~\cite{flower} for orchestration and Opacus~\cite{opacus} for local private training. We examine how non-IID data distributions, generated via symmetric Dirichlet partitioning, interact with DP-SGD mechanisms, and audit the reproducibility and numerical integrity of reported experimental artifacts.
 
-The objective is to train a convolutional neural network on a heavily skewed, non-IID partition of CIFAR-10 across distributed clients. The system must provide an $(\varepsilon,\delta)$-differential privacy guarantee for individual training samples, with the global guarantee obtained under the stated parallel-composition assumption across disjoint client datasets. We aim to quantify how much accuracy is sacrificed for strong privacy guarantees, particularly when the underlying local data is highly specialized (non-IID).
+\paragraph{Related Work.}
+Federated averaging was introduced by McMahan et al.~\cite{mcmahan2017} as a communication-efficient paradigm for decentralized deep learning. Abadi et al.~\cite{abadi2016} established DP-SGD, introducing the moments accountant for tight composition. Mironov~\cite{mironov2017} proposed Rényi Differential Privacy (RDP) as a relaxation that composes linearly under sequential training steps. Balle et al.~\cite{balle2020} derived the optimal conversion theorem from RDP to $(\varepsilon, \delta)$-DP implemented in Opacus. Under static data partitions, parallel composition~\cite{mcsherry2009} bounds global privacy loss across disjoint client datasets. System orchestration is managed by Flower~\cite{flower}, while Opacus~\cite{opacus} handles per-sample clipping and noise injection. Software library documentation does not constitute an independent mathematical proof of privacy.
 
 \section{Background}
 
-\subsection{Federated Learning}
+\subsection{Federated Learning and FedAvg}
+FL coordinates model training over synchronized communication rounds $r \in \{1, \dots, R\}$. At round $r$, a central server broadcasts the current global model parameters $w^r$ to participating clients $k \in \{0, \dots, K-1\}$. Each client trains locally on its local dataset $\mathcal{D}_k$ for $E$ epochs using mini-batch stochastic gradient descent, yielding updated parameters $w_k^{r+1}$. The server aggregates the updates using weighted averaging:
+\begin{equation}
+    w^{r+1} = \sum_{k=0}^{K-1} \frac{n_k}{N} w_k^{r+1},
+\end{equation}
+where $n_k = |\mathcal{D}_k|$ and $N = \sum_k n_k$.
 
-FL operates through synchronized rounds. The server broadcasts a global model, clients train locally, and the server aggregates the updates (e.g., via FedAvg).
-
-\subsection{Differential Privacy \& DP-SGD}
-
-DP guarantees that a single data sample's presence or absence does not statistically alter the algorithm's output probability beyond a bound $e^\varepsilon$. DP-SGD achieves this by computing per-sample gradients, clipping them to a maximum $L_2$ norm $C$, and adding Gaussian noise scaled by $C$ and $\sigma$.
+\subsection{Differential Privacy and DP-SGD}
+A randomized algorithm $\mathcal{M}$ satisfies $(\varepsilon, \delta)$-Differential Privacy (DP) if, for all neighboring datasets $\mathcal{D}, \mathcal{D}'$ differing by at most one sample, and all measurable output subsets $\mathcal{S}$:
+\begin{equation}
+    \mathbb{P}[\mathcal{M}(\mathcal{D}) \in \mathcal{S}] \le e^\varepsilon \mathbb{P}[\mathcal{M}(\mathcal{D}') \in \mathcal{S}] + \delta.
+\end{equation}
+DP-SGD satisfies this guarantee by: (1) computing per-sample gradients $g_i(w) = \nabla_w \ell(w; x_i)$, (2) clipping their $L_2$ norms to a maximum threshold $C$, yielding $\bar{g}_i = g_i / \max(1, \|g_i\|_2 / C)$, and (3) adding calibrated Gaussian noise to the aggregated gradient.
 
 \subsection{Rényi Differential Privacy (RDP)}
+Rényi Differential Privacy of order $\alpha_{\text{RDP}} > 1$ characterizes the Rényi divergence of order $\alpha_{\text{RDP}}$ between $\mathcal{M}(\mathcal{D})$ and $\mathcal{M}(\mathcal{D}')$. To prevent confusion throughout this report, we strictly denote the Rényi order as $\alpha_{\text{RDP}}$, distinguishing it from the Dirichlet data heterogeneity parameter $\alpha$. Under sequential composition, RDP values compose linearly: if client $k$ performs $T_k$ physical training steps, its cumulative RDP of order $\alpha_{\text{RDP}}$ is simply the sum of its step-level RDPs.
 
-RDP tracks the privacy loss analytically across multiple training steps using Rényi divergence. RDP provides tighter composition bounds for Gaussian mechanisms compared to standard DP, allowing us to safely convert the cumulative RDP back to $(\varepsilon, \delta)$ metrics after training.
+\section{Threat Model and Privacy Scope}
 
-\section{Threat and Privacy Motivation}
+\paragraph{Sample-Level Privacy.}
+We state explicitly and prominently that our implementation guarantees \textbf{sample-level} differential privacy. The privacy guarantee applies to individual CIFAR-10 training images under standard substitute-sample adjacency within each client's dataset. The mechanism does \textbf{not} provide client-level differential privacy; it does not guarantee indistinguishability for all training samples of a participant collectively.
 
-A malicious server or a compromised client intercepting updates could execute membership inference or data reconstruction attacks. Our threat model assumes an honest-but-curious server and adversarial participants. DP protects against these threats by ensuring that any output weight matrix is statistically indistinguishable regardless of any single participant's specific training samples.
+\paragraph{Adversarial Capabilities.}
+The threat model assumes an honest-but-curious central server and adversarial participants that observe shared model weights and round-level metrics. The server executes the aggregation protocol faithfully but may attempt to infer private training instances from received client parameters. Adversarial clients may observe global model checkpoints across rounds. Sample-level DP ensures that the presence or absence of any single training image has bounded statistical influence on the published models, mitigating membership inference and sample reconstruction attacks.
 
 \section{Methodology}
 
-Our methodology proceeds in sequential stages:
+\subsection{DP-SGD Mechanism Implementation}
+Local training uses Opacus. For each mini-batch drawn with batch size $B$, the mechanism:
+\begin{enumerate}
+    \item Computes per-sample gradients $g_i$ for each example $i$ in the batch.
+    \item Clips each gradient to maximum $L_2$ norm $C$: $\bar{g}_i = g_i / \max(1, \|g_i\|_2 / C)$.
+    \item Sums the clipped gradients: $\sum_{i} \bar{g}_i$.
+    \item Adds Gaussian noise with standard deviation $\sigma C$ to the summed clipped gradients:
+    \begin{equation}
+        \tilde{g} = \sum_{i=1}^{B} \bar{g}_i + \mathcal{N}(0, \sigma^2 C^2 I).
+    \end{equation}
+    \item Normalizes the noisy sum by the expected batch size to obtain the descent step: $g_{\text{step}} = \tilde{g} / B$.
+\end{enumerate}
+Because Gaussian noise standard deviation is scaled directly by $C$, the effective noise-to-sensitivity multiplier in the accountant is $\sigma$.
 
-1. Dirichlet data partitioning to simulate non-IID data.
-
-2. Centralized training baseline.
-
-3. Standard Federated Learning (FedAvg).
-
-4. Differentially Private Federated Learning (DP-FedAvg).
-
-5. Grid search over DP hyperparameters ($C, \sigma$).
-
-6. Ablation over data heterogeneity ($\alpha, \sigma$).
-
-\section{System Architecture}
-
-We use the \textbf{Flower} (\texttt{flwr}) framework to orchestrate virtual clients. Instead of physical network distribution, we leverage the \textbf{Ray} Virtual Client Engine to simulate massive concurrency on a single machine or GPU. The local training loop uses standard PyTorch, wrapped entirely by \textbf{Opacus}.
-
-\section{Dataset and Non-IID Partitioning}
-
-The CIFAR-10 dataset (50,000 training, 10,000 test images across 10 classes) is partitioned across 5 clients using a symmetric Dirichlet distribution parameterized by $\alpha$, implemented in \texttt{src/data.py}. The CLI interface accepts \texttt{--alpha} (default 0.1) and \texttt{--num-clients} (default 5 for full CIFAR-10), saving parameter-specific validation artifacts.
-
-\begin{itemize}
-    \item \textbf{$\alpha=0.1$ (High Heterogeneity)}: Allocates client sample sizes of [12944, 10514, 11934, 9029, 5579] across clients 0 to 4. The empirical heterogeneity metric (mean standard deviation of class counts across clients) is \textbf{1699.28}. Clients receive disjoint class concentrations.
-    \item \textbf{$\alpha=10.0$ (Near-IID)}: Allocates client sample sizes of [8856, 10009, 10553, 10399, 10183] with an empirical heterogeneity metric of \textbf{236.88}. Clients hold approximately uniform distributions across all 10 classes.
-\end{itemize}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\columnwidth]{figures/fig1_stage1_distribution.pdf}
-    \caption{Client Label Distribution under Dirichlet $\alpha=0.1$ across 5 clients, illustrating severe class concentration.}
-    \label{fig:stage1}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\columnwidth]{figures/fig1b_dirichlet_alpha_comparison.pdf}
-    \caption{Dirichlet Partition Comparison: High skew ($\alpha=0.1$, heterogeneity 1699.28) versus near-IID ($\alpha=10.0$, heterogeneity 236.88).}
-    \label{fig:stage1b}
-\end{figure}
-
-\section{Model Architecture}
-
-We use a SimpleCNN designed explicitly for DP:
-
-\begin{itemize}
-    \item 3 Convolutional layers ($3\to16\to32\to64$ channels)
-    \item \textbf{GroupNorm} instead of BatchNorm (crucial, as BatchNorm breaks per-sample independence)
-    \item MaxPool \& ReLU activations
-    \item Fully Connected layer ($64\times4\times4 \to 128 \to 10$)
-    \item Dropout ($p=0.5$) for regularization
-\end{itemize}
-
-\section{Federated Training Procedure}
-
-\begin{itemize}
-    \item \textbf{Clients}: 5
-    \item \textbf{Rounds}: 15
-    \item \textbf{Local Epochs}: 1
-    \item \textbf{Batch Size}: 64
-    \item \textbf{Optimizer}: SGD, Learning Rate: 0.05
-    \item \textbf{Aggregation}: FedAvg
-\end{itemize}
-
-\section{DP Mechanism}
-
-We implement DP using Opacus. The \texttt{PrivacyEngine} wraps the local model, optimizer, and dataloader. The dataloader uses Poisson sampling to create batches, computing true per-sample gradients.
-
-\begin{itemize}
-    \item \textbf{Clipping}: Per-sample gradient $L_2$ norms are bounded to $C \in \{0.1, 1.0\}$.
-    \item \textbf{Noise}: Gaussian noise scaled by $\sigma \in \{0.5, 1.0, 1.5, 2.0\}$ is added to the batch-averaged gradient.
-\end{itemize}
-
-\section{Privacy Accounting}
-
-We utilize Rényi Differential Privacy (RDP) to track the privacy loss analytically. Because the dataset is statically partitioned using a Dirichlet distribution and clients hold disjoint datasets, we leverage \textbf{parallel composition} across clients. The global privacy guarantee is bounded by the privacy loss of the worst-case individual client. The complete accounting chain is derived as follows.
-
-We explicitly define the parameters of the privacy accountant:
-\begin{itemize}
-    \item $\alpha$: Rényi order (distinct from the Dirichlet data heterogeneity parameter).
-    \item $\delta$: The target global failure probability, fixed to $10^{-5}$.
-    \item $\sigma$: The noise multiplier.
-    \item $C$: The per-sample gradient clipping norm.
-    \item $q$: The sampling rate (expected batch size divided by local dataset size).
-    \item $T$: The total number of physical DP steps performed by a client.
-\end{itemize}
-
-\subsection{Per-Step Subsampled Gaussian Mechanism}
-
-Privacy is evaluated at the sample level, protecting individual CIFAR-10 training images within each client's dataset under standard substitute-sample adjacency. At each training step, the dataloader draws a batch with empirical sampling rate $q_k = 1 / \text{len(train\_loader)} = 1 / \lceil n_k / B \rceil$, where $B=64$ is the batch size and $n_k$ is the local client dataset size. Opacus computes the per-sample gradients and clips them to a maximum $L_2$ norm $C$. It then adds Gaussian noise with standard deviation $\sigma C$ to the batch-averaged gradient. Note that while $C$ determines the absolute sensitivity and noise scale added to the gradients, it does not appear directly in the privacy accountant's $\varepsilon$ calculation because the $\sigma$ provided to Opacus already defines the noise multiplier relative to the sensitivity (i.e., noise standard deviation is $\sigma C$, so the ratio of noise to sensitivity is simply $\sigma$).
-
-\textbf{Sampling Assumption and Accounting Model}: The privacy analysis uses Opacus RDP accounting where batches are drawn via Poisson subsampling by default in \texttt{make\_private}, and the accountant uses the wrapped dataloader's sampling rate $q_k = 1 / \text{len(train\_loader)} = 1 / \lceil n_k / B \rceil$. The resulting epsilon values are numerically consistent with the configured accountant and stored run artifacts; the validity of this modeling choice has not undergone external human review.
-
-\subsection{Rényi Differential Privacy (RDP) Composition}
-
-For a single DP-SGD step, the privacy loss is quantified by the RDP of order $\alpha$, denoted as $\text{RDP}_{\text{step}}(\alpha, q, \sigma)$. Because each client performs local updates sequentially across communication rounds, by the linear additivity of RDP under sequential composition, the accumulated RDP for client $k$ performing $T_k$ total local steps is:
-
-\begin{equation}
-    \text{RDP}_{T_k}(\alpha) = T_k \cdot \text{RDP}_{\text{step}}(\alpha, q_k, \sigma)
-\end{equation}
-
-\subsection{Conversion to $(\varepsilon, \delta)$-DP}
-
-The cumulative RDP is converted back to standard $(\varepsilon, \delta)$-DP. We use the exact conversion formula implemented by the Opacus accountant, which is based on the optimal conversion theorem \cite{balle2020}:
-
-\begin{equation}
-    \varepsilon_\alpha(\delta) = \text{RDP}_{T_k}(\alpha) - \frac{\log \delta + \log \alpha}{\alpha - 1} + \log\left(\frac{\alpha - 1}{\alpha}\right)
-\end{equation}
-
-The reported $\varepsilon_k$ for client $k$ is the minimum over all evaluated Rényi orders $\alpha$:
-
-\begin{equation}
-    \varepsilon_k = \min_\alpha \varepsilon_\alpha(\delta)
-\end{equation}
-
-\subsection{Parallel Composition \& Global Privacy Guarantee}
-
-Under the parallel composition theorem \cite{mcsherry2009}, if randomized mechanisms operate on pairwise disjoint subsets of a global dataset, the overall release satisfies $(\max_k \varepsilon_k, \max_k \delta_k)$-DP for any individual sample. Because our Dirichlet partition allocates each CIFAR-10 training image exclusively to a single client $k$, an individual image participates solely in client $k$'s local updates. The global privacy guarantee is therefore strictly bounded by the worst-case client:
-
-\begin{equation}
-    \varepsilon_{\text{global}} = \max_{k \in \{0, \dots, K-1\}} \varepsilon_k
-\end{equation}
-
-The reported global privacy bound is obtained by taking the maximum per-client epsilon, under the assumption that the client datasets form disjoint partitions and that the mechanisms satisfy the conditions required for parallel composition under the stated adjacency definition. FedAvg aggregation of already privatized client updates is post-processing and incurs no additional privacy cost by itself. This does not eliminate the privacy cost of local training, which is accounted for across the relevant training steps and rounds. The validity of these composition assumptions has not received external human review.
-
-\textbf{Step Representation Clarification}: In our summary artifacts, the recorded \texttt{total\_dp\_steps} metric denotes the maximum cumulative DP steps executed by any single client ($\max_k T_k$, corresponding to the largest client partition, e.g., 3,045 steps for Client 0 under $\alpha=0.1$), rather than the sum across all federated clients ($\sum_k T_k = 11,775$). Under parallel composition, the global privacy guarantee $\varepsilon_{\text{global}} = \max_k \varepsilon_k$ is governed instead by the smallest client partition due to its higher sampling rate $q$, rather than the client executing the maximum physical steps.
-
-\subsection{Experimental Application}
-
-In our experiments, we fix $\delta = 10^{-5}$. The RDP accountant uses the actual sample rate $q$ extracted from the \texttt{DPDataLoader} and the exact accumulated DP step count $T$ for each client. The parameters $\sigma$ and $C$ are defined by the specific experimental run, and the final $\varepsilon$ (with its corresponding minimizing Rényi order) is recorded directly from the Opacus accountant in the run artifacts. The epsilon values were independently recomputed using the Opacus RDP analysis code and matched the run artifacts. The modeling assumptions, including parallel composition over disjoint client partitions and the treatment of FedAvg aggregation as post-processing, have not undergone external human review.
-
-\textbf{Concrete Example (Stage 4)}:
-
-In the authoritative 15-round Stage 4 run ($\sigma=1.0, C=1.0, \alpha=0.1$), client 4 held the smallest local dataset ($n_4 = 5,579$), executing $T_4 = 1,320$ DP steps ($88 \text{ steps/round} \times 15 \text{ rounds}$) with sample rate $q_4 = 1/88 \approx 0.01136$. Evaluated at $\delta = 10^{-5}$, the Opacus accountant identified a minimizing Rényi order of $\alpha_{\text{RDP}} \approx 6.9$, yielding the worst-case client privacy guarantee of $\varepsilon_4 = 2.6974$ (which defines the global privacy bound $\varepsilon_{\text{global}}$). By contrast, client 0 held the largest local dataset ($n_0 = 12,944$), executing $T_0 = 3,045$ DP steps ($203 \text{ steps/round} \times 15 \text{ rounds}$) with sample rate $q_0 = 1/203 \approx 0.00493$, resulting in $\varepsilon_0 = 1.6808$ (minimizing Rényi order $9.4$). Thus, the client executing the maximum physical DP steps does not incur the maximum privacy loss.
+\subsection{Privacy Accounting Chain}
+Privacy loss is tracked analytically via the subsampled Gaussian mechanism accountant in Opacus:
+\begin{enumerate}
+    \item \textbf{Subsampling Rate}: At each local step, client $k$ draws batches with empirical sampling rate $q_k = 1 / \lceil n_k / B \rceil$, where $B=64$ and $n_k$ is the client's local sample count.
+    \item \textbf{Sequential RDP Composition}: Over $T_k$ cumulative physical local steps, RDP accumulates linearly:
+    \begin{equation}
+        \text{RDP}_{T_k}(\alpha_{\text{RDP}}) = T_k \cdot \text{RDP}_{\text{step}}(\alpha_{\text{RDP}}, q_k, \sigma).
+    \end{equation}
+    \item \textbf{Conversion to $(\varepsilon, \delta)$-DP}: Cumulative RDP is converted to $(\varepsilon, \delta)$-DP at fixed $\delta = 10^{-5}$ via the optimal conversion theorem~\cite{balle2020}:
+    \begin{equation}
+        \varepsilon_k(\delta) = \min_{\alpha_{\text{RDP}} > 1} \left[ \text{RDP}_{T_k}(\alpha_{\text{RDP}}) - \frac{\log \delta + \log \alpha_{\text{RDP}}}{\alpha_{\text{RDP}} - 1} + \log\left(\frac{\alpha_{\text{RDP}} - 1}{\alpha_{\text{RDP}}}\right) \right].
+    \end{equation}
+    \item \textbf{Parallel Composition across Clients}: Because the CIFAR-10 training partition allocates individual images exclusively to disjoint client datasets, an individual image participates solely in client $k$'s training. By parallel composition~\cite{mcsherry2009}, the global privacy guarantee is governed by the worst-case individual client:
+    \begin{equation}
+        \varepsilon_{\text{global}} = \max_{k \in \{0, \dots, K-1\}} \varepsilon_k.
+    \end{equation}
+    Under this formulation, the worst-case client is the client with the \textbf{smallest} local sample count $n_k$, because its higher sampling rate $q_k$ drives faster privacy expenditure, despite executing fewer physical steps $T_k$. Server-side FedAvg aggregation is post-processing and incurs no additional privacy cost. These composition assumptions reflect the configured accounting model and have not undergone independent external third-party audit.
+\end{enumerate}
 
 \section{Experimental Setup}
 
-Empirical inspection of the run summary JSON artifacts across all completed experimental stages---Stage 2 centralized baseline, Stage 3 FedAvg, Stage 4 DP-FL, Stage 5 grid search, and Stage 6 ablation and multi-seed evaluations---confirms that all executions ran on a CPU device (\texttt{"device": "cpu"}, \texttt{"GPU": "None"}). None of the authoritative run artifacts record CUDA execution. While experiments were originally planned for GPU acceleration, we report the actual execution hardware as recorded in the provenance artifacts rather than planned configurations. Consequently, the recorded runtimes reflect CPU-bound performance.
+\subsection{Hardware and Execution Environment}
+Empirical inspection of all run summary JSON artifacts confirms that all reported experiments ran on a single machine on CPU (`\texttt{"device": "cpu"}', `\texttt{"GPU": "None"}'). Ray virtual-client simulation was executed as a single-machine process simulation rather than a physical distributed deployment.
+
+\subsection{Model Architecture}
+We evaluate SimpleCNN with GroupNorm, designed to preserve sample independence (avoiding BatchNorm, which leaks cross-sample statistics):
+\begin{itemize}
+    \item Three convolutional layers ($3 \to 16 \to 32 \to 64$ channels, $3\times 3$ kernels, padding 1).
+    \item GroupNorm with 4 groups following each convolutional layer.
+    \item ReLU activations and $2\times 2$ MaxPool layers.
+    \item Fully connected layers ($64 \times 4 \times 4 \to 128 \to 10$) with Dropout ($p=0.5$).
+\end{itemize}
+
+\subsection{Data Partitioning}
+CIFAR-10 (50,000 training, 10,000 test images across 10 classes) is partitioned across 5 clients using a symmetric Dirichlet distribution parameterized by $\alpha$:
+\begin{itemize}
+    \item \textbf{Allocation vs. Class Support}: Individual images are assigned to disjoint client datasets; however, client class distributions remain continuous and may overlap across clients. We avoid describing client datasets as holding ``disjoint classes.''
+    \item \textbf{$\alpha = 0.1$ (High Heterogeneity)}: Client sample sizes are $[12944, 10514, 11934, 9029, 5579]$. The empirical heterogeneity metric (mean standard deviation of class counts across clients) is 1699.28.
+    \item \textbf{$\alpha = 10.0$ (Near-IID)}: Client sample sizes are $[8856, 10009, 10553, 10399, 10183]$, with an empirical heterogeneity metric of 236.88.
+\end{itemize}
+Figure~\ref{fig:dirichlet_comparison} displays the resulting class distributions under both partition settings.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/fig1b_dirichlet_alpha_comparison.pdf}
+    \caption{Dirichlet partition comparison across 5 clients: (a) high heterogeneity ($\alpha=0.1$, metric 1699.28) and (b) near-IID ($\alpha=10.0$, metric 236.88). Individual images are disjointly partitioned, while class distributions exhibit continuous overlap.}
+    \label{fig:dirichlet_comparison}
+\end{figure}
+
+\subsection{Consolidated Hyperparameter Table}
+Table~\ref{tab:hyperparameters} consolidates all experimental hyperparameters across training stages. Where configurations differ, differences are explicitly recorded.
+
+\begin{table}[htbp]
+    \centering
+    \resizebox{\columnwidth}{!}{%
+    \begin{tabular}{|l|c|c|c|c|}
+        \hline
+        \textbf{Hyperparameter} & \textbf{Centralized (S2)} & \textbf{FedAvg (S3)} & \textbf{DP-FL Grid (S4, S5)} & \textbf{Ablation (S6)} \\
+        \hline
+        Dataset & CIFAR-10 & CIFAR-10 & CIFAR-10 & CIFAR-10 \\
+        Total Train Samples & 50,000 & 50,000 & 50,000 & 50,000 \\
+        Clients ($K$) & 1 (Centralized) & 5 & 5 & 5 \\
+        Dirichlet Parameter ($\alpha$) & N/A & 0.1 & 0.1 & 0.1, 10.0 \\
+        Communication Rounds ($R$) & N/A & 15 & 15 & 15 (ref), 3 (multi-seed) \\
+        Local Epochs ($E$) & 30 (epochs) & 1 & 1 & 1 \\
+        Batch Size ($B$) & 64 & 64 & 64 & 64 \\
+        Optimizer & Adam + CosineLR & SGD & SGD & SGD \\
+        Learning Rate & 0.001 & 0.05 & 0.05 & 0.05 \\
+        Noise Multiplier ($\sigma$) & None & None & 0.5, 1.0, 1.5, 2.0 & 1.0, 2.0 \\
+        Clipping Bound ($C$) & None & None & 0.1, 1.0 & 1.0 \\
+        Target Delta ($\delta$) & None & None & $10^{-5}$ & $10^{-5}$ \\
+        Execution Device & CPU & CPU & CPU & CPU \\
+        Random Seeds & 42 & 42 & 42 & 42, 43, 44 \\
+        \hline
+    \end{tabular}%
+    }
+    \caption{Consolidated hyperparameter configurations across experimental stages.}
+    \label{tab:hyperparameters}
+\end{table}
 
 \section{Results}
 
-\subsection{Centralized Baseline (Stage 2)}
+\subsection{Centralized and Non-Private FedAvg Baselines}
+The centralized baseline achieves \textbf{74.87\%} test accuracy after 30 epochs of Adam optimization (learning rate 0.001). Non-private FedAvg achieves \textbf{47.38\%} test accuracy after 15 communication rounds under $\alpha=0.1$ data heterogeneity (SGD, learning rate 0.05, 1 local epoch per round). 
 
-Training the model centralized on the full 50,000 CIFAR-10 images for 30 epochs (using the Adam optimizer with a learning rate of 0.001) achieves \textbf{74.87\%} test accuracy. This represents the empirical centralized non-private reference without federation or privacy constraints.
+\paragraph{Confounded Baseline Comparison.}
+We explicitly state that the 27.49 percentage-point difference between the centralized baseline (74.87\%) and non-private FedAvg (47.38\%) does not represent the cost of differential privacy or data heterogeneity alone. The comparison is confounded by optimizer selection (Adam with cosine annealing vs. fixed SGD), learning rate (0.001 vs. 0.05), training budget (30 full epochs vs. 15 federated rounds with 1 local epoch), and federated aggregation. No near-IID non-private FedAvg baseline was established in the experimental records. We do not claim that the individual contributions of these factors have been isolated.
 
-\textbf{Baseline Reproducibility Audit}: To audit baseline reproducibility, a complete 30-epoch rerun was executed using \texttt{scripts/compare\_baselines.py}. Both the original run and the rerun achieved an identical final test accuracy of \textbf{74.87\%} and an identical best test accuracy of \textbf{74.87\%} (classified as \texttt{EXACT\_MATCH} with \texttt{Trajectory Match: True}). All 30 epochs exhibit identical training loss, training accuracy, test loss, and test accuracy (maximum absolute difference: 0.000000, identical CSV SHA-256 checksum). The recorded runtimes differed substantially: the reference run recorded 2,487.73 seconds (~2,488s) while the audit rerun recorded 887.06 seconds (~887s) despite identical trajectories.
+\subsection{Main DP-FL Result (Stage 4)}
+The primary Stage~4 DP-FL configuration ($\alpha=0.1, \sigma=1.0, C=1.0$, seed 42) attains a final test accuracy of \textbf{26.11\%} (with a best round accuracy of 27.29\% at round 14) and a cumulative privacy bound of $\varepsilon = 2.6974$ ($\delta=10^{-5}$, minimizing Rényi order $\alpha_{\text{RDP}}=6.9$).
 
-\textbf{Reference Ceiling}: The achieved baseline of 74.87\% is below the project plan's original target of $>85\%$, and serves as the non-private empirical ceiling against which all federated and private models are evaluated.
+Figure~\ref{fig:stage4_acc_conv} shows test accuracy convergence over 15 communication rounds alongside the centralized baseline reference line (74.87\%). Figure~\ref{fig:stage4_loss_conv} presents the corresponding training loss trajectory. Figure~\ref{fig:stage4_eps} depicts cumulative privacy expenditure ($\varepsilon$).
 
-\subsection{Non-private FedAvg (Stage 3)}
-
-Federating the model across 5 clients with $\alpha=0.1$ (high skew) for 15 rounds without DP noise achieves \textbf{47.38\%} accuracy. Comparing this to the centralized baseline (74.87\%) shows that non-IID federated training achieves lower accuracy (47.38\%), and adding DP noise (Stage 4) further reduces utility to 26.11\%.
-
-\subsection{DP-FL (Stage 4)}
-
-Adding Opacus DP ($\sigma=1.0, C=1.0$) further impacts the signal-to-noise ratio. The model achieves \textbf{26.11\%} accuracy (with a best accuracy of \textbf{27.29\%} at round 14) at $\varepsilon=2.6974$ after 15 communication rounds. Note that due to computational constraints (execution on CPU rather than the intended GPU), we were unable to perform hyperparameter tuning of the federated learning rate or momentum specifically for the DP configurations; it is possible that further utility improvements could be attained by tuning the optimizer specifically for DP.
-
-\begin{figure}[h]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\columnwidth]{figures/fig2a_stage4_accuracy_convergence.pdf}
-    \caption{Stage 4 convergence (Test Accuracy vs Communication Round) over 15 rounds, overlaid with the centralized baseline epochs.}
+    \caption{Stage 4 test accuracy convergence over 15 communication rounds ($\alpha=0.1, \sigma=1.0, C=1.0$, seed 42) with the centralized baseline (74.87\%) shown as a horizontal reference line.}
     \label{fig:stage4_acc_conv}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\columnwidth]{figures/fig2b_stage4_loss_convergence.pdf}
-    \caption{Stage 4 convergence (Training Loss vs Communication Round) over 15 rounds, illustrating the training dynamics of DP-FL compared to the centralized baseline.}
+    \caption{Stage 4 training loss trajectory across 15 communication rounds.}
     \label{fig:stage4_loss_conv}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\columnwidth]{figures/fig3_stage4_epsilon.pdf}
-    \caption{Stage 4 DP-FL privacy accumulation (Epsilon vs Round).}
+    \caption{Stage 4 cumulative epsilon ($\varepsilon$ vs. communication round) under RDP accounting at $\delta=10^{-5}$.}
     \label{fig:stage4_eps}
 \end{figure}
 
-\subsection{Sigma/C Grid Results (Stage 5)}
+\subsection{Noise Multiplier and Clipping Threshold Grid (Stage 5)}
+Table~\ref{tab:stage5_grid} reports the authoritative 15-round Stage~5 grid search across noise multipliers $\sigma \in \{0.5, 1.0, 1.5, 2.0\}$ and clipping bounds $C \in \{0.1, 1.0\}$ under $\alpha=0.1$ and seed 42.
 
-We mapped the privacy-utility curve across noise multipliers and clipping thresholds:
-
-\begin{itemize}
-    \item Higher $\sigma$ decreases $\varepsilon$ (stronger privacy) but hurts accuracy.
-    \item The impact of clipping norm $C$ is complex: while it does not impact the mathematical $\varepsilon$ directly, a lower $C=0.1$ can actually outperform $C=1.0$ at high noise levels (e.g., $\sigma=2.0$).
-    \item \textbf{Best Privacy}: $\sigma=2.0, C=0.1$ gives $\varepsilon=0.9117$ but accuracy drops to 30.57\%.
-    \item \textbf{Best Accuracy}: $\sigma=0.5, C=1.0$ gives 36.49\% accuracy but weak privacy ($\varepsilon=19.0778$).
-\end{itemize}
-
-\begin{table}[h]
+\begin{table}[htbp]
     \centering
-    \begin{tabular}{|c|c|c|c|c|}
+    \resizebox{\columnwidth}{!}{%
+    \begin{tabular}{|c|c|c|c|}
         \hline
-        $\sigma$ & $C$ & $\delta$ & Best RDP Order & $\varepsilon$ \\
+        \textbf{Noise Multiplier ($\sigma$)} & \textbf{Epsilon ($\varepsilon$ at $\delta=10^{-5}$)} & \textbf{Accuracy at $C=0.1$} & \textbf{Accuracy at $C=1.0$} \\
         \hline
-        0.5 & 0.1 & $10^{-5}$ & 1.9 & 19.0778 \\
-        0.5 & 1.0 & $10^{-5}$ & 1.9 & 19.0778 \\
-        1.0 & 0.1 & $10^{-5}$ & 6.9 & 2.6974 \\
-        1.0 & 1.0 & $10^{-5}$ & 6.9 & 2.6974 \\
-        1.5 & 0.1 & $10^{-5}$ & 13.0 & 1.3436 \\
-        1.5 & 1.0 & $10^{-5}$ & 13.0 & 1.3436 \\
-        2.0 & 0.1 & $10^{-5}$ & 19.0 & 0.9117 \\
-        2.0 & 1.0 & $10^{-5}$ & 19.0 & 0.9117 \\
+        0.5 & 19.0778 & 30.61\% & 36.49\% \\
+        1.0 & 2.6974  & 32.01\% & 28.74\% \\
+        1.5 & 1.3436  & 32.06\% & 17.27\% \\
+        2.0 & 0.9117  & 30.57\% & 18.37\% \\
         \hline
-    \end{tabular}
-    \caption{Privacy-analysis summary covering all 8 Stage 5 full-data configurations.}
-    \label{tab:stage5_eps}
+    \end{tabular}%
+    }
+    \caption{Stage 5 privacy--utility grid across 15 communication rounds ($\alpha=0.1$, seed 42). Epsilon is identical across clipping thresholds $C$ for a given $\sigma$ because $C$ scales both clipping sensitivity and Gaussian noise standard deviation ($\sigma C$), leaving the noise multiplier relative to sensitivity invariant in the accountant.}
+    \label{tab:stage5_grid}
 \end{table}
 
-\begin{figure}[h]
+\paragraph{Non-Monotonicity and Clipping Dynamics.}
+The grid results refute the blanket assumption that increasing $\sigma$ uniformly degrades accuracy across all configurations:
+\begin{itemize}
+    \item For $C=0.1$, final accuracy remains remarkably stable across noise scales: 30.61\% ($\sigma=0.5$), 32.01\% ($\sigma=1.0$), 32.06\% ($\sigma=1.5$), and 30.57\% ($\sigma=2.0$). At $\sigma=2.0$, configuring $C=0.1$ yields \textbf{30.57\%} accuracy at a strong formal bound of $\varepsilon = 0.9117$.
+    \item Conversely, for $C=1.0$, accuracy drops steeply as noise increases: from 36.49\% ($\sigma=0.5$) down to 28.74\% ($\sigma=1.0$), 17.27\% ($\sigma=1.5$), and 18.37\% ($\sigma=2.0$).
+\end{itemize}
+Figure~\ref{fig:stage5_tradeoff} illustrates these distinct trajectories. Classification accuracy depends heavily on the interaction between clipping threshold, gradient scaling, and stochastic optimization, rather than solely on the formal privacy budget $\varepsilon$.
+
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\columnwidth]{figures/fig4_stage5_tradeoff.pdf}
-    \caption{Stage 5 Privacy-Utility Tradeoff across grid configurations.}
-    \label{fig:stage5}
+    \caption{Stage 5 privacy--utility tradeoff across 15 rounds for (a) $C=0.1$ and (b) $C=1.0$.}
+    \label{fig:stage5_tradeoff}
 \end{figure}
 
-\subsection{Alpha Ablation (Stage 6)}
+\subsection{Data Heterogeneity Ablation (Stage 6)}
+Table~\ref{tab:stage6_15rounds} summarizes the authoritative 15-round Stage~6 reference runs comparing high skew ($\alpha=0.1$) against near-IID data ($\alpha=10.0$).
 
-We evaluated data heterogeneity settings $\alpha \in \{0.1, 10.0\}$ under DP ($\sigma \in \{1.0, 2.0\}$, $C=1.0$, $\delta=10^{-5}$) across 15 communication rounds on the full CIFAR-10 dataset (Table~\ref{tab:stage6_eps}).
-
-\begin{table}[h]
+\begin{table}[htbp]
     \centering
+    \resizebox{\columnwidth}{!}{%
     \begin{tabular}{|c|c|c|c|c|c|c|}
         \hline
-        $\alpha$ & $\sigma$ & $C$ & $\delta$ & Best Rényi Order & $\varepsilon$ & Final Accuracy \\
+        $\alpha$ & $\sigma$ & $C$ & Seed & Best Order $\alpha_{\text{RDP}}$ & $\varepsilon$ ($\delta=10^{-5}$) & Final Accuracy \\
         \hline
-        0.1 & 1.0 & 1.0 & $10^{-5}$ & 6.9 & 2.6974 & 24.41\% \\
-        10.0 & 1.0 & 1.0 & $10^{-5}$ & 8.3 & 2.0691 & 31.51\% \\
-        0.1 & 2.0 & 1.0 & $10^{-5}$ & 19.0 & 0.9117 & 13.79\% \\
-        10.0 & 2.0 & 1.0 & $10^{-5}$ & 23.0 & 0.7271 & 15.26\% \\
+        0.1  & 1.0 & 1.0 & 42 & 6.9  & 2.6974 & 24.41\% \\
+        10.0 & 1.0 & 1.0 & 42 & 8.3  & 2.0691 & 31.51\% \\
+        0.1  & 2.0 & 1.0 & 42 & 19.0 & 0.9117 & 13.79\% \\
+        10.0 & 2.0 & 1.0 & 44 & 23.0 & 0.7271 & 15.26\% \\
         \hline
-    \end{tabular}
-    \caption{Stage 6 privacy-analysis summary (15 rounds).}
-    \label{tab:stage6_eps}
+    \end{tabular}%
+    }
+    \caption{Stage 6 15-round data heterogeneity ablation runs on full CIFAR-10 across 5 clients.}
+    \label{tab:stage6_15rounds}
 \end{table}
 
-The $\alpha=10.0, \sigma=2.0$ run uses seed 44; the other three Stage 6 15-round runs use seed 42.
-
+\paragraph{Experimental Observations.}
 \begin{itemize}
-    \item \textbf{$\sigma=1.0$ Comparison}: In the 15-round runs at $\sigma=1.0$, seed 42 produced 24.41\% for $\alpha=0.1$ and 31.51\% for $\alpha=10.0$. This is an empirical observation from a single seed (seed 42), not a general result.
-    \item \textbf{$\sigma=2.0$ Comparison}: In the 15-round runs at $\sigma=2.0$, the $\alpha=10.0$ run used seed 44 (15.26\%) while the $\alpha=0.1$ run used seed 42 (13.79\%). Because the seed 42 run for $\alpha=10.0$ encountered a Ray IPC worker crash and required replacement with seed 44, this represents a non-like-for-like comparison across different random seeds. The observed accuracy difference cannot be attributed to data heterogeneity alone.
-    \item \textbf{Physical DP Step Counts and Parallel Composition}: Top-level run summaries report \texttt{total\_dp\_steps} as the maximum physical update steps executed by any single client ($\max_k T_k$, belonging to the client with the largest partition). Under parallel composition across disjoint client subsets, the global privacy guarantee $\varepsilon_{\text{global}} = \max_k \varepsilon_k$ is governed instead by the client with the smallest partition due to its higher sampling rate $q_k = 1 / \lceil n_k / 64 \rceil$. Tables~\ref{tab:stage6_clients_alpha01} and~\ref{tab:stage6_clients_alpha10} present the complete verified per-client accounting breakdown for $\sigma=1.0, C=1.0$ under $\alpha=0.1$ and $\alpha=10.0$.
+    \item At $\sigma=1.0$ (seed 42), the near-IID run achieves 31.51\% final accuracy compared to 24.41\% under high heterogeneity ($\alpha=0.1$). This is an empirical observation from a single seed.
+    \item At $\sigma=2.0$, the near-IID run used seed 44 (15.26\%) while the $\alpha=0.1$ run used seed 42 (13.79\%), due to an IPC worker restart on seed 42. Because random seeds differ, this is a non-like-for-like comparison and cannot be attributed to data heterogeneity alone.
+    \item Near-IID partitioning yields lower cumulative epsilon ($\varepsilon=2.0691$ vs. $2.6974$ at $\sigma=1.0$) because client sample sizes are more evenly balanced ($n_k \approx 10,000$), reducing the worst-case sampling rate $q_k$.
 \end{itemize}
+Figures~\ref{fig:stage6_ablation} and~\ref{fig:stage6_paired} display the Stage~6 ablation trajectories and paired comparisons.
 
-\begin{table}[h]
+\begin{figure}[htbp]
     \centering
+    \includegraphics[width=\columnwidth]{figures/fig5_stage6_ablation.pdf}
+    \caption{Stage 6 15-round ablation results comparing $\alpha=0.1$ and $\alpha=10.0$ under $\sigma=1.0$ and $\sigma=2.0$.}
+    \label{fig:stage6_ablation}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/fig5a_stage6_alpha_comparison.pdf}
+    \caption{Stage 6 paired comparison across random seeds 42, 43, and 44 over 3 communication rounds.}
+    \label{fig:stage6_paired}
+\end{figure}
+
+\subsection{Multi-Seed Robustness Evaluation}
+To evaluate sensitivity to random seed initialization, multi-seed experiments were performed across three seeds ($\{42, 43, 44\}$, $N=3$) over 3 communication rounds on full CIFAR-10. Table~\ref{tab:multiseed} presents empirical means and sample standard deviations ($s$, computed with Bessel's correction $\text{ddof}=1$).
+
+\begin{table}[htbp]
+    \centering
+    \resizebox{\columnwidth}{!}{%
+    \begin{tabular}{|c|c|c|c|c|c|c|}
+        \hline
+        $\alpha$ & $\sigma$ & Seeds & Final Acc. Mean & Final Acc. Std ($s$) & Epsilon Mean & Epsilon Std ($s$) \\
+        \hline
+        0.1  & 1.0 & 42, 43, 44 & 18.66\% & $\pm 0.93\%$ & 1.5171 & $\pm 0.0215$ \\
+        0.1  & 2.0 & 42, 43, 44 & 10.96\% & $\pm 1.07\%$ & 0.3712 & $\pm 0.0301$ \\
+        10.0 & 1.0 & 42, 43, 44 & 17.88\% & $\pm 2.36\%$ & 1.2354 & $\pm 0.0214$ \\
+        10.0 & 2.0 & 42, 43, 44 &  9.77\% & $\pm 0.69\%$ & 0.3073 & $\pm 0.0133$ \\
+        \hline
+    \end{tabular}%
+    }
+    \caption{Multi-seed empirical robustness summary ($N=3$ seeds, 3 communication rounds). Standard deviations denote sample standard deviations ($s$ with $\text{ddof}=1$). Underlying pipeline files record population standard deviations ($\text{ddof}=0$).}
+    \label{tab:multiseed}
+\end{table}
+
+\paragraph{Interpretation of Multi-Seed Results.}
+These experiments cover only three communication rounds and produce low early accuracies (9.77\%--18.66\%). The observed accuracy differences between $\alpha=0.1$ and $\alpha=10.0$ (+0.78\% at $\sigma=1.0$ and +1.19\% at $\sigma=2.0$ in favor of $\alpha=0.1$) fall well within sample standard deviations ($\pm 2.36\%$ and $\pm 1.07\%$). They provide preliminary evidence of seed variability, but do not provide evidence for or against a general data heterogeneity effect over full training horizons. We make no claim of statistical significance or equivalence.
+
+Figure~\ref{fig:stage6_multiseed_summary} plots the 3-round multi-seed summary against the 15-round reference runs, and Figure~\ref{fig:combined_tradeoff} illustrates the combined tradeoff across Stages 5 and 6.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/fig5b_stage6_multiseed_summary.pdf}
+    \caption{Stage 6 multi-seed summary (3-round mean $\pm$ sample standard deviation) alongside 15-round reference runs. Distinct markers and shared colors differentiate 3-round from 15-round series.}
+    \label{fig:stage6_multiseed_summary}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/fig6_combined.pdf}
+    \caption{Combined privacy--utility tradeoff across Stage 5 grid search and Stage 6 ablation runs.}
+    \label{fig:combined_tradeoff}
+\end{figure}
+
+\subsection{Audit of Nominally Identical Historical Runs}
+During repository auditing, three distinct final test accuracies were identified for nominally identical configurations ($\alpha=0.1, \sigma=1.0, C=1.0$, seed 42, 15 rounds, 5 clients, SGD learning rate 0.05, batch size 64). Table~\ref{tab:discrepancy} audits these runs against source artifacts.
+
+\begin{table}[htbp]
+    \centering
+    \resizebox{\columnwidth}{!}{%
+    \begin{tabular}{|l|c|c|c|l|l|}
+        \hline
+        \textbf{Experimental Stage} & \textbf{Final Acc.} & \textbf{Best Acc.} & \textbf{Epsilon ($\varepsilon$)} & \textbf{Timestamp} & \textbf{Source Artifact} \\
+        \hline
+        Stage 4 DP-FL & 26.11\% & 27.29\% & 2.6974 & 2026-10-07 & \texttt{stage4/summary.json} \\
+        Stage 5 Grid & 28.74\% & 28.74\% & 2.6974 & 2026-10-09 & \texttt{stage5/.../summary.json} \\
+        Stage 6 Ablation & 24.41\% & 27.14\% & 2.6974 & 2026-10-09 & \texttt{stage6/.../summary.json} \\
+        \hline
+    \end{tabular}%
+    }
+    \caption{Comparison of historical 15-round runs sharing identical nominal hyperparameters ($\alpha=0.1, \sigma=1.0, C=1.0$, seed 42). All runs predate the determinism patch of 2026-10-11.}
+    \label{tab:discrepancy}
+\end{table}
+
+\paragraph{Audit Findings.}
+\begin{enumerate}
+    \item \textbf{Accounting Agreement}: All three runs exhibit identical privacy accounting metrics: $\varepsilon = 2.6974$ at $\delta=10^{-5}$, minimizing Rényi order $\alpha_{\text{RDP}} = 6.9$, and client 4 governing the global bound ($T_4 = 1320$ steps, $q_4 = 1/88$).
+    \item \textbf{Timing vs. Determinism Patch}: All three executions occurred on October 7 and October 9, 2026, predating the end-to-end deterministic seeding patch committed on October 11, 2026 (commit \texttt{08ad3f8}).
+    \item \textbf{Historical Non-Determinism}: Prior to commit \texttt{08ad3f8}, the federated execution pipeline lacked per-round client seed derivation, isolated DataLoader RNG generators, and deterministic server aggregation sorting across Ray actor processes. In addition, minor runner script refactorings occurred across stages. Consequently, identical nominal seeds did not yield identical historical trajectories.
+    \item \textbf{Attribution}: Because multiple software factors evolved between October 7 and 9, the exact causal attribution of accuracy differences cannot be conclusively isolated from historical artifacts alone. Exact reproducibility of historical runs is explicitly not claimed; determinism has been demonstrated solely on post-patch integration tests.
+\end{enumerate}
+
+\section{Discussion}
+
+\paragraph{Privacy Budget vs. Model Utility.}
+Our empirical findings demonstrate that formal privacy bounds do not map monotonically to classification accuracy. Earlier drafts claimed that enforcing $\varepsilon < 2.0$ necessarily constrains accuracy below 30\%. However:
+\begin{itemize}
+    \item In Stage~5, configuring $\sigma=2.0$ with $C=0.1$ achieved \textbf{30.57\%} test accuracy at $\varepsilon = 0.9117$.
+    \item In Stage~6, the near-IID configuration ($\alpha=10.0, \sigma=1.0, C=1.0$) achieved \textbf{31.51\%} accuracy at $\varepsilon = 2.0691$.
+\end{itemize}
+Model utility depends intricately on gradient clipping norm $C$, local gradient variance, and optimization dynamics, rather than differential privacy budget $\varepsilon$ in isolation.
+
+\paragraph{Finite-Horizon Evaluation.}
+The 15-round runs provide empirical measurements over a 15-round horizon on CPU. They do not demonstrate asymptotic convergence. Extended training horizons and systematic learning rate scheduling would be required to evaluate long-term convergence behavior.
+
+\section{Limitations}
+
+\begin{enumerate}
+    \item \textbf{Privacy Scope}: The privacy guarantee strictly protects individual CIFAR-10 training images (sample-level DP), not entire participating clients or institutions.
+    \item \textbf{Composition Assumptions}: Global privacy bounds rely on parallel composition over statically partitioned, disjoint client datasets. Dynamic client dropout or overlapping partitions would invalidate this accounting model. The composition modeling has not undergone independent third-party external audit.
+    \item \textbf{Secure Random Number Generation}: For simulation efficiency, Opacus cryptographically secure RNG was disabled (`\texttt{"secure\_rng": false}'). Production deployments requiring formal differential privacy must enable cryptographically secure RNG.
+    \item \textbf{Hyperparameter Tuning}: Federated learning rates and momentum were kept fixed across DP runs without DP-specific tuning due to CPU computational constraints.
+    \item \textbf{Multi-Seed Scope}: Multi-seed runs were limited to 3 communication rounds and 3 seeds, serving as preliminary variance checks rather than asymptotic proofs.
+\end{enumerate}
+
+\section{Conclusion}
+
+We conducted an empirical audit and evaluation of Differentially Private Federated Learning on CIFAR-10 across 5 clients. On full CIFAR-10, centralized non-private training reaches 74.87\% accuracy (Adam, 30 epochs), non-private FedAvg achieves 47.38\% accuracy (SGD, 15 rounds), and DP-FL attains 26.11\% accuracy at $\varepsilon=2.6974$ ($\sigma=1.0, C=1.0$, 15 rounds). By evaluating a hyperparameter grid, we showed that $\varepsilon < 2.0$ does not universally degrade accuracy below 30\%, as configuring $\sigma=2.0$ with $C=0.1$ achieved 30.57\% accuracy at $\varepsilon=0.9117$. Historical runs predating the repository's determinism patch exhibited outcome variance (24.41\%--28.74\%) across nominally identical settings, demonstrating that historical runs cannot be claimed to be exactly reproducible. Direct baseline comparisons remain confounded by optimizer choice and training budgets. These findings emphasize the necessity of rigorous empirical accounting and transparent reporting in differentially private federated systems.
+
+\clearpage
+\appendix
+\section*{Appendix}
+
+\section{Detailed Privacy Accounting Breakdown}
+
+Tables~\ref{tab:app_alpha01} and~\ref{tab:app_alpha10} record the verified per-client accounting breakdown for $\sigma=1.0, C=1.0$ under $\alpha=0.1$ and $\alpha=10.0$ across 15 communication rounds.
+
+\begin{table}[htbp]
+    \centering
+    \resizebox{\columnwidth}{!}{%
     \begin{tabular}{|c|c|c|c|c|c|}
         \hline
-        Client $k$ & Samples $n_k$ & Sample Rate $q_k$ & Steps $T_k$ & $\varepsilon_k$ & Rényi Order \\
+        \textbf{Client $k$} & \textbf{Samples $n_k$} & \textbf{Sample Rate $q_k$} & \textbf{Steps $T_k$} & \textbf{Epsilon $\varepsilon_k$} & \textbf{Minimizing Rényi Order} \\
         \hline
         0 & 12,944 & 0.00493 & 3,045 & 1.6808 & 9.4 \\
         1 & 10,514 & 0.00606 & 2,475 & 1.8797 & 8.8 \\
         2 & 11,934 & 0.00535 & 2,805 & 1.7560 & 9.1 \\
-        3 & 9,029  & 0.00704 & 2,130 & 2.0442 & 8.4 \\
-        4 & 5,579  & 0.01136 & 1,320 & 2.6974 & 6.9 \\
+        3 &  9,029 & 0.00704 & 2,130 & 2.0442 & 8.4 \\
+        4 &  5,579 & 0.01136 & 1,320 & 2.6974 & 6.9 \\
         \hline
-    \end{tabular}
-    \caption{Per-client accounting breakdown for $\alpha=0.1, \sigma=1.0, C=1.0$, seed 42 (15 rounds), recorded directly in the run summary artifact (\texttt{client\_details}). Client 4 determines global privacy ($\varepsilon_{\text{global}}=2.6974$), while Client 0 executed the maximum physical steps ($\max_k T_k = 3,045$).}
-    \label{tab:stage6_clients_alpha01}
+    \end{tabular}%
+    }
+    \caption{Per-client accounting breakdown for $\alpha=0.1, \sigma=1.0, C=1.0$, seed 42 (15 rounds). Client 4 determines global privacy ($\varepsilon_{\text{global}}=2.6974$) due to its highest sampling rate, while Client 0 executed the most physical steps ($T_0=3,045$).}
+    \label{tab:app_alpha01}
 \end{table}
 
-\begin{table}[h]
+\begin{table}[htbp]
     \centering
+    \resizebox{\columnwidth}{!}{%
     \begin{tabular}{|c|c|c|c|c|c|}
         \hline
-        Client $k$ & Samples $n_k$ & Sample Rate $q_k$ & Steps $T_k$ & $\varepsilon_k$ & Rényi Order \\
+        \textbf{Client $k$} & \textbf{Samples $n_k$} & \textbf{Sample Rate $q_k$} & \textbf{Steps $T_k$} & \textbf{Epsilon $\varepsilon_k$} & \textbf{Minimizing Rényi Order} \\
         \hline
-        0 & 8,856  & 0.00719 & 2,085 & 2.0691 & 8.3 \\
+        0 &  8,856 & 0.00719 & 2,085 & 2.0691 & 8.3 \\
         1 & 10,009 & 0.00637 & 2,355 & 1.9323 & 8.7 \\
         2 & 10,553 & 0.00606 & 2,475 & 1.8797 & 8.8 \\
         3 & 10,399 & 0.00613 & 2,445 & 1.8925 & 8.8 \\
         4 & 10,183 & 0.00625 & 2,400 & 1.9120 & 8.7 \\
         \hline
-    \end{tabular}
-    \caption{Per-client accounting breakdown for $\alpha=10.0, \sigma=1.0, C=1.0$, seed 42 (15 rounds), recorded directly in the run summary artifact (\texttt{client\_details}). Client 0 determines global privacy ($\varepsilon_{\text{global}}=2.0691$), while Client 2 executed the maximum physical steps ($\max_k T_k = 2,475$).}
-    \label{tab:stage6_clients_alpha10}
+    \end{tabular}%
+    }
+    \caption{Per-client accounting breakdown for $\alpha=10.0, \sigma=1.0, C=1.0$, seed 42 (15 rounds). Client 0 determines global privacy ($\varepsilon_{\text{global}}=2.0691$), while Client 2 executed the most physical steps ($T_2=2,475$).}
+    \label{tab:app_alpha10}
 \end{table}
 
-\subsection{Multi-Seed Robustness Evaluation}
-
-To assess sensitivity to random seed initialization, we evaluate multi-seed performance across 3 distinct seeds ($\{42, 43, 44\}$, $N=3$) over 3 communication rounds on the full CIFAR-10 dataset across 5 clients. Table~\ref{tab:stage6_multiseed} presents the empirical means and sample standard deviations ($s$, $\text{ddof}=1$).
-
-\begin{table}[h]
-    \centering
-    \begin{tabular}{|c|c|c|c|c|c|c|}
-        \hline
-        $\alpha$ & $\sigma$ & Seeds & Final Acc Mean (\%) & Final Acc Std & Epsilon Mean ($\varepsilon$) & Epsilon Std \\
-        \hline
-        0.1 & 1.0 & 42, 43, 44 & 18.66 & $\pm 0.93$ & 1.5171 & $\pm 0.0215$ \\
-        0.1 & 2.0 & 42, 43, 44 & 10.96 & $\pm 1.07$ & 0.3712 & $\pm 0.0301$ \\
-        10.0 & 1.0 & 42, 43, 44 & 17.88 & $\pm 2.36$ & 1.2354 & $\pm 0.0214$ \\
-        10.0 & 2.0 & 42, 43, 44 & 9.77 & $\pm 0.69$ & 0.3073 & $\pm 0.0133$ \\
-        \hline
-    \end{tabular}
-    \caption{Multi-seed empirical robustness summary ($N=3$ seeds, 3 communication rounds). Standard deviations denote sample standard deviations ($s$ with Bessel's correction, $\text{ddof}=1$); the underlying automated storage files (\texttt{aggregate.csv} and \texttt{aggregate.json}) record population standard deviations ($\text{ddof}=0$).}
-    \label{tab:stage6_multiseed}
-\end{table}
-
-\textbf{Empirical Analysis}:
-Across these 3-round multi-seed runs:
-\begin{itemize}
-    \item At $\sigma=1.0$, $\alpha=0.1$ achieved a mean accuracy of 18.66\% ($\pm 0.93\%$), while $\alpha=10.0$ achieved 17.88\% ($\pm 2.36\%$).
-    \item At $\sigma=2.0$, $\alpha=0.1$ achieved a mean accuracy of 10.96\% ($\pm 1.07\%$), while $\alpha=10.0$ achieved 9.77\% ($\pm 0.69\%$).
-\end{itemize}
-The observed gaps between $\alpha=0.1$ and $\alpha=10.0$ (0.78\% at $\sigma=1.0$ and 1.19\% at $\sigma=2.0$, where $\alpha=0.1$ actually had slightly higher sample means) are within approximately one standard deviation ($\pm 2.36\%$ and $\pm 1.07\%$) and do not support a statistically established $\alpha$ effect or heterogeneity penalty in these three-round experiments. We do not claim statistical significance or statistical confidence.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\columnwidth]{figures/fig5_stage6_ablation.pdf}
-    \caption{Stage 6 Alpha/Sigma Ablation results showing empirical observations over 15 communication rounds.}
-    \label{fig:stage6_ablation}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\columnwidth]{figures/fig5a_stage6_alpha_comparison.pdf}
-    \caption{Stage 6 Paired Heterogeneity Comparison across matching seeds ($\alpha=0.1$ vs $\alpha=10.0$ under $\sigma=1.0$ and $\sigma=2.0$).}
-    \label{fig:stage6_paired}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\columnwidth]{figures/fig5b_stage6_multiseed_summary.pdf}
-    \caption{Stage 6 Privacy-Utility Summary showing 3-seed mean $\pm$ standard deviation alongside 15-round reference runs.}
-    \label{fig:stage6_multiseed_summary}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\columnwidth]{figures/fig6_combined.pdf}
-    \caption{Combined Privacy-Utility Tradeoff across Stages 5 and 6.}
-    \label{fig:stage6_combined}
-\end{figure}
-
-\section{Privacy--Utility Tradeoff}
-
-Our empirical findings illustrate the tension between formal privacy bounds and model accuracy. Under the tested DP-SGD parameters, enforcing $\varepsilon < 2.0$ on CIFAR-10 reduces accuracy to below 30\%, compared to 47.38\% for non-private FedAvg and 74.87\% for the centralized baseline.
-
-\section{Discussion}
-
-The 15-round runs provide empirical measurements of accuracy and privacy accumulation across 15 communication rounds. They do not establish asymptotic convergence. Longer horizons, additional random seeds, and like-for-like seed comparisons would be required to evaluate asymptotic behavior and potential heterogeneity interactions over extended training.
-
-\section{Limitations}
-
-\begin{enumerate}
-    \item \textbf{Hyperparameters}: While $\sigma$ and $C$ were systematically evaluated, the local learning rate and optimizer settings were fixed across experiments. DP-SGD typically benefits from specialized learning rate schedules.
-    \item \textbf{Accounting Assumption}: Privacy accounting assumes disjoint client partitions under parallel composition. Dynamic client participation, dropout, or overlapping data partitions would require alternative accounting formulations.
-    \item \textbf{Secure RNG}: For experimental efficiency and deterministic reproducibility, Opacus secure RNG was disabled (\texttt{secure\_rng: false}). Production deployments requiring cryptographically secure differential privacy guarantees must enable secure RNG.
-\end{enumerate}
-
-\section{Reproducibility}
+\section{Reproducibility Architecture and Verification}
 
 \subsection{Deterministic Seeding Architecture}
-
-In \texttt{scripts/run\_federated.py}, end-to-end reproducibility is enforced through structured RNG management:
+In commit \texttt{08ad3f8} (2026-10-11), determinism was implemented in \texttt{run\_federated.py}:
 \begin{itemize}
-    \item \texttt{main()} initializes Python \texttt{random}, NumPy, and PyTorch RNGs (\texttt{torch.manual\_seed}, \texttt{torch.cuda.manual\_seed\_all}) using the base seed.
-    \item \texttt{derive\_seed(base\_seed, client\_id, server\_round)} deterministically derives a stable integer seed in $[0, 2^{31}-1]$ from \texttt{f"\{base\_seed\}:\{client\_id\}:\{server\_round\}"} via SHA-256.
-    \item Each client \texttt{fit()} invocation reseeds Python, NumPy, and PyTorch RNGs, and passes an isolated \texttt{torch.Generator} to data loader shuffling and Opacus \texttt{make\_private(..., noise\_generator=gen)}.
-    \item The initial global model is initialized from a seeded instance and passed to the server strategy as \texttt{initial\_parameters}.
-    \item In \texttt{CheckpointingFedAvg.aggregate\_fit()}, incoming client results are sorted deterministically by numeric client ID before federated averaging.
+    \item \textbf{Root Initialization}: Seeds Python \texttt{random}, NumPy, and PyTorch RNGs using base seed.
+    \item \textbf{Per-Client Seeding}: Deterministically derives an integer seed via SHA-256:
+    \begin{equation}
+        \text{seed}_{k, r} = \text{int}\Big(\text{SHA256}(s_{\text{base}} : k : r)[:4]\Big) \ \& \ \text{0x7FFFFFFF}.
+    \end{equation}
+    \item \textbf{Isolated Generator}: Passes an isolated \texttt{torch.Generator} to DataLoader shuffling and Opacus \texttt{make\_private}.
+    \item \textbf{Deterministic Initial Model}: Initializes the initial global model from a seeded instance and passes it to the server strategy as \texttt{initial\_parameters}.
+    \item \textbf{Deterministic Aggregation}: In \texttt{CheckpointingFedAvg.aggregate\_fit()}, incoming client results are sorted deterministically by numeric client ID before averaging.
 \end{itemize}
 
-\subsection{Empirical Verification Artifacts}
-
-Reproducibility was verified across three integration runs in \texttt{results/reproducibility/}:
+\subsection{Integration Verification Artifacts}
+Reproducibility was verified across two-round integration runs in \texttt{results/reproducibility/}:
 \begin{itemize}
-    \item \textbf{Run A (seed 42) vs. Run B (seed 42)}: Both runs produced bitwise identical initial model hash (\texttt{00c43041ea88aeae6062c53a51a03a08e6ced7c38624c6cab9f84770086177f3}), identical final model hash (\texttt{e23b740fdbc3071a3fced62bab52f30b934d9fd8aab30457f7199e7086d6efce}), identical cumulative epsilon ($\varepsilon = 4.442963$), identical best Rényi order ($4.1$), identical total DP steps ($30$), and identical per-round accuracy (13.5\% round 1, 12.5\% round 2).
-    \item \textbf{Run Seed 43 (Divergence Check)}: Seed 43 produced a different initial model hash (\texttt{3f269f49a0401293b0f9c9032383bb2c7de05abc1d8bc05e725d9431efab2fec}), different final model hash (\texttt{1f2fa650dd8ca6154a4501f06ff5f87840eec3165eee8c2ea21f698d2a6c1104}), different final accuracy (7.5\%, best: 7.5\%), different epsilon ($\varepsilon = 4.696514$), and different best order ($4.0$), while confirming structural step count agreement ($30$ total DP steps).
+    \item \textbf{Run A vs. Run B (Seed 42)}: Both runs produced identical initial model hash (\texttt{00c43041...}), identical final model hash (\texttt{e23b740f...}), identical cumulative epsilon ($\varepsilon = 4.442963$), identical best Rényi order (4.1), identical total DP steps (30), and identical per-round accuracy (13.5\% round 1, 12.5\% round 2).
+    \item \textbf{Divergence Check (Seed 43)}: Seed 43 produced distinct initial and final model hashes, different accuracy (7.5\%), and different epsilon ($\varepsilon = 4.696514$), while maintaining structural step count agreement (30 total DP steps).
 \end{itemize}
-
-\subsection{Critical Historical Caveat}
-
-Comparison of embedded artifact timestamps (ranging from 2026-09-07 to 2026-10-10) and Git commit history (\texttt{08ad3f8} on 2026-10-11) confirms that all full-scale Stage 3, 4, 5, and 6 artifacts predate the implementation of the deterministic reproducibility patch. Bitwise determinism has been demonstrated solely on the two-round subset integration runs; exact full-scale reproducibility is not claimed for historical runs.
-
-\section{Conclusion}
-
-We successfully implemented a fully accountable DP-FL pipeline using modern frameworks (Flower, Opacus). While mathematical privacy guarantees are achievable, they enforce a severe utility penalty on image classification tasks under realistic non-IID conditions.
 
 \begin{thebibliography}{9}
 
+\bibitem{mcmahan2017}
+B.~McMahan, E.~Moore, D.~Ramage, S.~Hampson, and B.~A.~y~Arcas,
+``Communication-Efficient Learning of Deep Networks from Decentralized Data,''
+in \emph{Proceedings of the 20th International Conference on Artificial Intelligence and Statistics (AISTATS)}, 2017.
+
+\bibitem{abadi2016}
+M.~Abadi, A.~Chu, I.~Goodfellow, H.~B.~McMahan, I.~Mironov, K.~Talwar, and L.~Zhang,
+``Deep Learning with Differential Privacy,''
+in \emph{Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (CCS)}, 2016.
+
+\bibitem{mironov2017}
+I.~Mironov,
+``R{\'e}nyi Differential Privacy,''
+in \emph{IEEE 30th Computer Security Foundations Symposium (CSF)}, 2017.
+
 \bibitem{balle2020}
-Balle, B., Barthe, G., and Gaboardi, M. ``Hypothesis Testing Interpretations and Rényi Differential Privacy.'' AISTATS 2020.
-
-\bibitem{mcmahan}
-McMahan et al. ``Communication-Efficient Learning of Deep Networks from Decentralized Data'' (FedAvg). AISTATS 2017.
-
-\bibitem{abadi}
-Abadi et al. ``Deep Learning with Differential Privacy'' (DP-SGD). ACM SIGSAC 2016.
-
-\bibitem{mironov}
-Mironov. ``Rényi Differential Privacy''. IEEE CSF 2017.
+B.~Balle, G.~Barthe, and M.~Gaboardi,
+``Hypothesis Testing Interpretations and R{\'e}nyi Differential Privacy,''
+in \emph{Proceedings of the 23rd International Conference on Artificial Intelligence and Statistics (AISTATS)}, 2020.
 
 \bibitem{mcsherry2009}
-McSherry, F. ``Privacy integrated queries: an extensible platform for privacy-preserving data analysis.'' ACM SIGMOD 2009.
+F.~McSherry,
+``Privacy Integrated Queries: An Extensible Platform for Privacy-Preserving Data Analysis,''
+in \emph{Proceedings of the 2009 ACM SIGMOD International Conference on Management of Data}, 2009.
+
+\bibitem{flower}
+D.~J.~Beutel, T.~Topal, A.~Mathur, X.~Qiu, T.~Fernandez, P.~Z.~Gao, L.~Sani, K.~H.~Li, T.~Parcollet, P.~P.~de~Gusm{\~a}o, and N.~D.~Lane,
+``Flower: A Friendly Federated Learning Framework,''
+\emph{arXiv preprint arXiv:2007.14390}, 2020.
 
 \bibitem{opacus}
-Opacus Documentation \& Flower Documentation.
+A.~Yousefpour, I.~Shilov, A.~Sablayrolles, D.~Testuggine, K.~Prasad, M.~Mani, J.~Gao, R.~Shen, Y.~Wang, K.~Wang, C.~Song, N.~Shen, C.~Chen, N.~Mavroforakis, P.~Garrido, M.~Gopal, N.~Verma, Y.~L.~Kravitz, and P.~Stock,
+``Opacus: User-Friendly Differential Privacy in PyTorch,''
+\emph{arXiv preprint arXiv:2109.12298}, 2021.
 
 \end{thebibliography}
 
