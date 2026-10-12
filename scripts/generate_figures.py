@@ -342,6 +342,9 @@ def generate_dirichlet_alpha_comparison(
     ax1.set_title(rf"(a) Non-IID Partition ($\alpha = {alpha_val1}$){title_suffix}")
     ax1.set_ylabel("Samples")
     ax1.grid(axis="y", linestyle=":", alpha=0.6)
+    max_c1 = max(max(v) for v in counts1.values())
+    max_c2 = max(max(v) for v in counts2.values())
+    ax1.set_ylim(0, max(max_c1, max_c2) * 1.35)
     ax1.legend(ncol=5, loc="upper right", framealpha=0.85, fontsize=5.8)
 
     # Panel 2: Alpha = 10.0 (Bottom)
@@ -429,6 +432,8 @@ def main():
                 ax1.set_ylabel("Sample Count")
                 ax1.set_xticks(x + width * (n_clients - 1) / 2)
                 ax1.set_xticklabels([str(j) for j in range(n_classes)])
+                max_c = max(max(v) for v in counts.values())
+                ax1.set_ylim(0, max_c * 1.35)
                 ax1.legend(ncol=5, loc="upper right", framealpha=0.85, fontsize=5.8)
                 ax1.grid(axis='y', linestyle=':', alpha=0.6)
                 save_publication_figure(fig1, os.path.join(out_dir, f"{fig_prefix}fig1_stage1_distribution"), dpi=args.dpi, staging_dir=staging_dir)
